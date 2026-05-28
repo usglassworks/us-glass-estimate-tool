@@ -306,6 +306,30 @@ tfoot td.l{text-align:left}
 .project-actions{display:flex;gap:6px;flex-shrink:0}
 .project-actions .btn-load{background:#1a5f8c;color:#fff;border:none;padding:10px 16px;border-radius:7px;font-size:14px;font-weight:700;font-family:inherit;min-height:44px;touch-action:manipulation;cursor:pointer}
 .project-actions .btn-del-p{background:#c62828;color:#fff;border:none;padding:10px 14px;border-radius:7px;font-size:14px;font-weight:700;font-family:inherit;min-height:44px;touch-action:manipulation;cursor:pointer}
+
+/* JSON取込モーダル */
+.json-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200000;display:flex;align-items:center;justify-content:center;padding:16px}
+.json-modal{background:#fff;border-radius:14px;padding:24px;width:100%;max-width:560px;box-shadow:0 8px 32px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:16px;max-height:90vh;overflow-y:auto}
+.json-modal-title{font-size:17px;font-weight:800;color:#0d2b50}
+.json-modal-tabs{display:flex;gap:0;border:2px solid #1a5f8c;border-radius:8px;overflow:hidden;flex-shrink:0}
+.json-modal-tab{flex:1;padding:10px;border:none;font-size:14px;font-weight:700;font-family:inherit;background:#fff;color:#1a5f8c;cursor:pointer;min-height:44px}
+.json-modal-tab.on{background:#1a5f8c;color:#fff}
+.json-modal-tab:first-child{border-right:1px solid #1a5f8c}
+.json-modal-section{display:flex;flex-direction:column;gap:10px}
+.json-modal-section textarea{width:100%;height:160px;border:1.5px solid #ccc;border-radius:8px;padding:10px;font-size:13px;font-family:monospace;resize:vertical}
+.json-modal-section textarea:focus{outline:none;border-color:#1a5f8c}
+.json-file-label{display:flex;align-items:center;gap:12px;padding:14px;border:2px dashed #1a5f8c;border-radius:8px;background:#f0f7ff;cursor:pointer;font-size:14px;font-weight:700;color:#1a5f8c;min-height:56px}
+.json-file-label:active{background:#ddeeff}
+.json-file-label input[type=file]{display:none}
+.json-mode-row{display:flex;gap:6px;flex-wrap:wrap}
+.json-mode-row label{display:flex;align-items:center;gap:6px;font-size:14px;color:#333;padding:6px 10px;border-radius:6px;min-height:40px}
+.json-mode-row input[type=radio]{width:18px;height:18px;accent-color:#1a5f8c;flex-shrink:0}
+.json-modal-error{background:#ffeaea;border:1px solid #f44;border-radius:7px;padding:10px 14px;font-size:13px;color:#c00}
+.json-modal-btns{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.btn-jm-cancel{background:#eee;color:#333;border:none;padding:12px 22px;border-radius:7px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;min-height:44px}
+.btn-jm-ok{background:#1a5f8c;color:#fff;border:none;padding:12px 28px;border-radius:7px;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer;min-height:44px}
+.btn-jm-ok:disabled{opacity:.5;cursor:not-allowed}
+.btn-json-import{background:#0d6b50;color:#fff;border:none;padding:14px 24px;border-radius:8px;font-size:15px;font-weight:800;font-family:inherit;min-height:56px;position:relative;z-index:100000;pointer-events:auto!important;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 </style>
 </head>
 <body>
@@ -553,6 +577,7 @@ tfoot td.l{text-align:left}
     <button type="button" id="loadProjectBtn" class="btn-preview" onclick="showSavedProjects()">案件を呼び出し</button>
     <button type="button" id="saveQuoteBtn" class="btn-preview" onclick="saveQuoteHTML()">見積書を保存</button>
     <button type="button" id="sendToManagerBtn" class="btn-send-manager" onclick="sendToManager()">現場管理に送る</button>
+    <button type="button" id="jsonImportBtn" class="btn-json-import" onclick="showJsonImportModal()">JSON取込</button>
     <button type="button" id="pdfBtn" class="btn-pdf" onclick="printPDF()">PDF出力（A4 横）</button>
   </div>
 
@@ -2919,6 +2944,194 @@ updateDriveSyncLabel();
 addRow();
 renderMasterPanel();
 updateMasterWarning();
+
+/* ══════════════════════════════════════════════
+   図面拾い出しJSON 取込
+══════════════════════════════════════════════ */
+var _jmCurrentTab = 'paste';
+var _jmFileContent = null;
+
+function showJsonImportModal(){
+  gv('json-import-overlay').style.display = 'flex';
+  gv('jm-textarea').value = '';
+  gv('jm-file-name').textContent = '';
+  gv('jm-file').value = '';
+  _jmFileContent = null;
+  jmClearError();
+  jmTab('paste');
+}
+
+function closeJsonImportModal(){
+  gv('json-import-overlay').style.display = 'none';
+}
+
+function jmTab(tab){
+  _jmCurrentTab = tab;
+  gv('jm-section-paste').style.display = (tab === 'paste') ? '' : 'none';
+  gv('jm-section-file').style.display  = (tab === 'file')  ? '' : 'none';
+  gv('jm-tab-paste').className = 'json-modal-tab' + (tab === 'paste' ? ' on' : '');
+  gv('jm-tab-file').className  = 'json-modal-tab' + (tab === 'file'  ? ' on' : '');
+  jmClearError();
+}
+
+function jmFileSelected(input){
+  var file = input.files[0];
+  if(!file){ _jmFileContent = null; gv('jm-file-name').textContent = ''; return; }
+  gv('jm-file-name').textContent = file.name;
+  var reader = new FileReader();
+  reader.onload = function(e){ _jmFileContent = e.target.result; jmClearError(); };
+  reader.onerror = function(){ jmShowError('ファイルの読み込みに失敗しました。'); };
+  reader.readAsText(file);
+}
+
+function jmShowError(msg){
+  var el = gv('jm-error');
+  el.textContent = msg;
+  el.style.display = '';
+}
+
+function jmClearError(){
+  gv('jm-error').style.display = 'none';
+}
+
+function _convertDrawingItem(item){
+  var GLASS_MAP = {
+    'FL2':'FL2','FL3':'FL3','FL5':'FL5','FL6':'FL6','FL8':'FL8','FL10':'FL10','FL12':'FL12',
+    'F6':'F6','Fw':'Fw','fw':'Fw','pw':'pw',
+    'グリーンラル6':'グリーンラル6','グリーンラル8':'グリーンラル8',
+    'スリガラス3':'スリガラス3','スリガラス5':'スリガラス5','スリガラス6':'スリガラス6',
+    'Yカガミ3':'Yカガミ3','Yカガミ5':'Yカガミ5','Yカガミ6':'Yカガミ6',
+    '3+3透明':'3+3透明','4+4透明':'4+4透明','5+5透明':'5+5透明','3+3乳半':'3+3乳半','4+4乳半':'4+4乳半',
+    'ラミブロック3+3透明':'ラミブロック3+3透明','ラミブロック4+4透明':'ラミブロック4+4透明',
+    'ラミブロック3+3乳半':'ラミブロック3+3乳半','ラミブロック4+4乳半':'ラミブロック4+4乳半',
+    '耐熱5':'耐熱5','耐熱8':'耐熱8',
+    '複層ガラス':'複層ガラス','LOW-E複層':'LOW-E複層','特注品':'特注品'
+  };
+  return {
+    fixtureNo : item.symbol   || '',
+    width     : item.width_mm  != null ? Number(item.width_mm)  : '',
+    height    : item.height_mm != null ? Number(item.height_mm) : '',
+    qty       : item.qty       != null ? Number(item.qty)       : 1,
+    glassType : GLASS_MAP[item.glass_type] || item.glass_type || 'FL5',
+    fixing    : (item.fixing === 'ビード') ? 'bead' : 'caulking',
+    hasRemove : (item.remove === 'あり'),
+    note      : item.note || ''
+  };
+}
+
+function _applyRowData(card, d){
+  var fno = card.querySelector('.fixture-no');
+  var iw  = card.querySelector('.iw');
+  var ih  = card.querySelector('.ih');
+  var iq  = card.querySelector('.iq');
+  var ig  = card.querySelector('.ig');
+  var id  = card.dataset.rid;
+
+  if(fno) fno.value = d.fixtureNo;
+  if(iw)  iw.value  = (d.width  !== '') ? d.width  : '';
+  if(ih)  ih.value  = (d.height !== '') ? d.height : '';
+  if(iq)  iq.value  = d.qty;
+  if(ig){
+    ig.value = d.glassType;
+    if(ig.value !== d.glassType) ig.value = '自由入力';
+  }
+
+  var fixBead  = card.querySelector('input[name="fix' + id + '"][value="bead"]');
+  var fixCaulk = card.querySelector('input[name="fix' + id + '"][value="caulking"]');
+  if(d.fixing === 'bead'){ if(fixBead)  fixBead.checked  = true; }
+  else                   { if(fixCaulk) fixCaulk.checked = true; }
+
+  var remEl = card.querySelector('input[name="rem' + id + '"][value="' + (d.hasRemove ? '1' : '0') + '"]');
+  if(remEl) remEl.checked = true;
+
+  if(d.note){
+    var addName = card.querySelector('.add-name');
+    if(addName && !addName.value) addName.value = d.note;
+  }
+
+  updateRow(card);
+}
+
+function applyJsonImport(){
+  var text = '';
+  if(_jmCurrentTab === 'paste'){
+    text = gv('jm-textarea').value.trim();
+  } else {
+    if(!_jmFileContent){ jmShowError('ファイルが選択されていません。'); return; }
+    text = _jmFileContent.trim();
+  }
+
+  if(!text){ jmShowError('JSONを入力してください。'); return; }
+
+  var obj;
+  try { obj = JSON.parse(text); }
+  catch(e){ jmShowError('JSONの解析に失敗しました: ' + e.message); return; }
+
+  if(!obj || typeof obj !== 'object'){ jmShowError('不正なJSONです。'); return; }
+  if(!Array.isArray(obj.items) || obj.items.length === 0){
+    jmShowError('items 配列が見つからないか空です。'); return;
+  }
+
+  var modeReplace = (document.querySelector('input[name="jmMode"]:checked') || {}).value === 'replace';
+
+  if(modeReplace){
+    var existing = document.querySelectorAll('#row-cards .row-card');
+    existing.forEach(function(el){ el.parentNode.removeChild(el); });
+    rid = 0;
+  }
+
+  obj.items.forEach(function(item){
+    var d = _convertDrawingItem(item);
+    addRow();
+    var cards = document.querySelectorAll('#row-cards .row-card');
+    var card = cards[cards.length - 1];
+    if(card) _applyRowData(card, d);
+  });
+
+  renumber();
+  calc();
+  closeJsonImportModal();
+}
+
 </script>
+
+<!-- JSON取込モーダル -->
+<div id="json-import-overlay" class="json-modal-overlay" style="display:none" onclick="if(event.target===this)closeJsonImportModal()">
+  <div class="json-modal" role="dialog" aria-modal="true" aria-label="図面JSON取込">
+    <div class="json-modal-title">図面拾い出しJSONを取込</div>
+
+    <div class="json-modal-tabs">
+      <button type="button" class="json-modal-tab on" id="jm-tab-paste" onclick="jmTab('paste')">テキスト貼り付け</button>
+      <button type="button" class="json-modal-tab"    id="jm-tab-file"  onclick="jmTab('file')">ファイルを選択</button>
+    </div>
+
+    <div id="jm-section-paste" class="json-modal-section">
+      <textarea id="jm-textarea" placeholder='{"app":"US_GLASS_DRAWING_TAKEOFF","items":[...]}' oninput="jmClearError()"></textarea>
+    </div>
+
+    <div id="jm-section-file" class="json-modal-section" style="display:none">
+      <label class="json-file-label">
+        <input type="file" id="jm-file" accept=".json,application/json" onchange="jmFileSelected(this)">
+        ファイルを選択
+        <span id="jm-file-name" style="font-size:12px;font-weight:400;color:#555;margin-left:8px"></span>
+      </label>
+    </div>
+
+    <div>
+      <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:6px">取込方法</div>
+      <div class="json-mode-row">
+        <label><input type="radio" name="jmMode" value="append" checked> 既存明細に追加</label>
+        <label><input type="radio" name="jmMode" value="replace"> 全置き換え</label>
+      </div>
+    </div>
+
+    <div id="jm-error" class="json-modal-error" style="display:none"></div>
+
+    <div class="json-modal-btns">
+      <button type="button" class="btn-jm-cancel" onclick="closeJsonImportModal()">キャンセル</button>
+      <button type="button" class="btn-jm-ok" id="jm-ok-btn" onclick="applyJsonImport()">取込実行</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
