@@ -207,7 +207,7 @@ tfoot td.l{text-align:left}
 .preview-mode .handoff-bar,
 .preview-mode .drive-sync-bar,
 .preview-mode .bottom-view-bar,
-.preview-mode .bottom-action-row,.preview-mode .quick-action-bar{display:none!important}
+.preview-mode .bottom-action-row,.preview-mode .quick-action-bar,.preview-mode #master-panel{display:none!important}
 .preview-mode .tbl-section{box-shadow:none;border:1.5px solid #ccd;border-radius:8px;overflow:visible}
 /* プレビューモードでは画面幅に関わらず必ず横表表示 */
 .preview-mode table{display:table!important;width:100%!important;min-width:0!important;table-layout:fixed!important;font-size:9px!important}
@@ -329,12 +329,8 @@ tfoot td.l{text-align:left}
 .btn-jm-cancel{background:#eee;color:#333;border:none;padding:12px 22px;border-radius:7px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;min-height:44px}
 .btn-jm-ok{background:#1a5f8c;color:#fff;border:none;padding:12px 28px;border-radius:7px;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer;min-height:44px}
 .btn-jm-ok:disabled{opacity:.5;cursor:not-allowed}
-.quick-action-bar{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 12px 14px;background:#f0f4f8;border-radius:10px;border:1.5px solid #ccd;margin-bottom:10px}
-.qa-title{grid-column:1/-1;font-size:12px;font-weight:800;color:#556;letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px}
-.qa-view-row{grid-column:1/-1;display:flex;gap:8px}
-.tbtn-qa{flex:1;background:#546e7a;color:#fff;border:none;padding:12px 8px;border-radius:8px;font-size:13px;font-weight:700;font-family:inherit;min-height:44px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-.tbtn-qa.on{background:#1a237e}
-.qa-mode-label{grid-column:1/-1;font-size:12px;font-weight:700;color:#1b5e20;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:5px 11px;text-align:center}
+.quick-action-bar{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 12px 14px;background:#f0f4f8;border-radius:10px;border:1.5px solid #ccd;margin-bottom:14px}
+.master-panel-inner{padding:16px 18px 18px;border-top:1px solid #eee}
 .btn-json-import{background:#0d6b50;color:#fff;border:none;padding:14px 24px;border-radius:8px;font-size:15px;font-weight:800;font-family:inherit;min-height:56px;position:relative;z-index:100000;pointer-events:auto!important;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 </style>
 </head>
@@ -371,6 +367,19 @@ tfoot td.l{text-align:left}
       <button id="btn-int" class="tbtn on" type="button" onclick="setView('internal')">社内用</button>
       <button id="btn-cus" class="tbtn"    type="button" onclick="setView('customer')">元請け提出用</button>
     </div>
+  </div>
+
+  <!-- クイック操作 -->
+  <div class="quick-action-bar no-print" id="quick-action-bar">
+    <button type="button" class="btn-preview" onclick="previewPDF()">PDF確認プレビュー</button>
+    <button type="button" class="btn-preview" onclick="saveProjectData()">案件を上書き保存</button>
+    <button type="button" class="btn-preview" onclick="saveAsNewProject()">別案件として保存</button>
+    <button type="button" class="btn-preview" onclick="showSavedProjects()">案件を呼び出し</button>
+    <button type="button" class="btn-preview" onclick="saveQuoteHTML()">見積書を保存</button>
+    <button type="button" class="btn-json-import" onclick="showJsonImportModal()">JSON取込</button>
+    <button type="button" class="btn-preview" style="background:#5d4037" onclick="sendToManager()">現場管理に送る</button>
+    <button type="button" class="btn-pdf" onclick="printPDF()">PDF出力（A4 横）</button>
+    <button type="button" class="btn-reset-est" onclick="resetEstimate()">明細をリセット</button>
   </div>
 
   <!-- 設定パネル -->
@@ -504,33 +513,39 @@ tfoot td.l{text-align:left}
         </div>
       </div>
 
-      <!-- 単価マスター編集（全幅） -->
-      <div class="sblock master-sblock" id="master-sblock">
-        <div class="sblock-title">単価マスター編集</div>
+    </div>
+  </div>
 
-        <div class="master-sec-label">材料単価 GP（円/m² × 1.10 × 面積）</div>
-        <div class="master-grid" id="mp-gp-grid"></div>
+  <!-- 単価マスター編集パネル -->
+  <div class="settings-panel no-print" id="master-panel">
+    <button type="button" class="settings-hdr" onclick="toggleMasterPanel()">
+      <span>単価マスター編集</span>
+      <span class="settings-hdr-arrow" id="master-arrow">▲</span>
+    </button>
+    <div class="master-panel-inner" id="master-panel-inner" style="display:none">
 
-        <div class="master-sec-label">施工単価 CR（円/m²）</div>
-        <div class="master-grid" id="mp-cr-grid"></div>
+      <div class="master-sec-label">材料単価 GP（円/m² × 1.10 × 面積）</div>
+      <div class="master-grid" id="mp-gp-grid"></div>
 
-        <div class="master-sec-label">その他単価</div>
-        <div class="master-grid">
-          <div class="master-item"><label>通常コーキング単価(円/m)</label><input type="number" id="mp-oth-ckNormal" min="0" step="10"></div>
-          <div class="master-item"><label>防火コーキング単価(円/m)</label><input type="number" id="mp-oth-ckFire" min="0" step="10"></div>
-          <div class="master-item"><label>コーキング剥がし単価(円/m)</label><input type="number" id="mp-oth-ckRemoval" min="0" step="10"></div>
-          <div class="master-item"><label>廃棄代(円/枚)</label><input type="number" id="mp-oth-disposal" min="0" step="100"></div>
-          <div class="master-item"><label>Yカガミ施工費(円/枚)</label><input type="number" id="mp-oth-mirrorLabor" min="0" step="100"></div>
-          <div class="master-item"><label>戸車交換代(円/枚)</label><input type="number" id="mp-oth-doorPulley" min="0" step="100"></div>
-        </div>
+      <div class="master-sec-label">施工単価 CR（円/m²）</div>
+      <div class="master-grid" id="mp-cr-grid"></div>
 
-        <div class="master-btn-row">
-          <button type="button" id="masterSaveBtn" class="btn-master-save">単価を保存</button>
-          <button type="button" id="masterResetBtn" class="btn-master-reset">初期単価に戻す</button>
-          <button type="button" id="exportMasterBtn" class="btn-master-save" onclick="exportMasterPrices()">単価を書き出し</button>
-          <button type="button" id="importMasterBtn" class="btn-master-save" onclick="importMasterPrices()">単価を読み込み</button>
-          <span class="master-saved-msg" id="master-saved-msg">✓ 保存しました</span>
-        </div>
+      <div class="master-sec-label">その他単価</div>
+      <div class="master-grid">
+        <div class="master-item"><label>通常コーキング単価(円/m)</label><input type="number" id="mp-oth-ckNormal" min="0" step="10"></div>
+        <div class="master-item"><label>防火コーキング単価(円/m)</label><input type="number" id="mp-oth-ckFire" min="0" step="10"></div>
+        <div class="master-item"><label>コーキング剥がし単価(円/m)</label><input type="number" id="mp-oth-ckRemoval" min="0" step="10"></div>
+        <div class="master-item"><label>廃棄代(円/枚)</label><input type="number" id="mp-oth-disposal" min="0" step="100"></div>
+        <div class="master-item"><label>Yカガミ施工費(円/枚)</label><input type="number" id="mp-oth-mirrorLabor" min="0" step="100"></div>
+        <div class="master-item"><label>戸車交換代(円/枚)</label><input type="number" id="mp-oth-doorPulley" min="0" step="100"></div>
+      </div>
+
+      <div class="master-btn-row">
+        <button type="button" id="masterSaveBtn" class="btn-master-save">単価を保存</button>
+        <button type="button" id="masterResetBtn" class="btn-master-reset">初期単価に戻す</button>
+        <button type="button" id="exportMasterBtn" class="btn-master-save" onclick="exportMasterPrices()">単価を書き出し</button>
+        <button type="button" id="importMasterBtn" class="btn-master-save" onclick="importMasterPrices()">単価を読み込み</button>
+        <span class="master-saved-msg" id="master-saved-msg">✓ 保存しました</span>
       </div>
 
     </div>
@@ -538,21 +553,6 @@ tfoot td.l{text-align:left}
 
   <!-- 行カード -->
   <div id="row-cards" class="row-cards no-print"></div>
-  <!-- クイック操作 -->
-  <div class="quick-action-bar no-print">
-    <div class="qa-title">クイック操作</div>
-    <button type="button" class="btn-preview" onclick="previewPDF()">PDF確認プレビュー</button>
-    <button type="button" class="btn-json-import" onclick="showJsonImportModal()">JSON取込</button>
-    <button type="button" class="btn-pdf" onclick="printPDF()">PDF出力（A4 横）</button>
-    <button type="button" class="btn-reset-est" onclick="resetEstimate()">明細をリセット</button>
-    <button type="button" class="btn-preview" onclick="saveProjectData()">案件を保存</button>
-    <button type="button" class="btn-preview" onclick="showSavedProjects()">案件を呼び出し</button>
-    <div class="qa-view-row">
-      <button type="button" id="btn-int-qa" class="tbtn-qa on" onclick="setView('internal')">社内用</button>
-      <button type="button" id="btn-cus-qa" class="tbtn-qa" onclick="setView('customer')">元請け提出用</button>
-    </div>
-    <div id="pdf-mode-label-qa" class="qa-mode-label">現在の出力：社内用PDF</div>
-  </div>
   <button type="button" class="btn-add no-print" onclick="addRow()">＋ 明細を追加</button>
 
   <!-- テーブルセクション -->
@@ -1356,12 +1356,7 @@ function setView(mode){
   /* PDF出力ラベル */
   var pl = gv('pdf-mode-label');
   if(pl) pl.textContent = '現在の出力：' + (mode === 'internal' ? '社内用PDF' : '元請け提出用PDF');
-  /* クイック操作パネルのタブも同期 */
-  var biq = gv('btn-int-qa'), bcq = gv('btn-cus-qa');
-  if(biq) biq.className = 'tbtn-qa' + (mode === 'internal' ? ' on' : '');
-  if(bcq) bcq.className = 'tbtn-qa' + (mode === 'customer' ? ' on' : '');
-  var plq = gv('pdf-mode-label-qa');
-  if(plq) plq.textContent = '現在の出力：' + (mode === 'internal' ? '社内用PDF' : '元請け提出用PDF');
+
   calc();
 }
 
@@ -1371,6 +1366,14 @@ function setView(mode){
 function toggleSettings(){
   var inner = gv('settings-inner');
   var arrow = gv('settings-arrow');
+  if(!inner) return;
+  var isOpen = inner.style.display !== 'none';
+  inner.style.display = isOpen ? 'none' : '';
+  if(arrow) arrow.className = 'settings-hdr-arrow' + (isOpen ? '' : ' open');
+}
+function toggleMasterPanel(){
+  var inner = gv('master-panel-inner');
+  var arrow = gv('master-arrow');
   if(!inner) return;
   var isOpen = inner.style.display !== 'none';
   inner.style.display = isOpen ? 'none' : '';
