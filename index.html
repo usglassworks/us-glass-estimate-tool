@@ -1003,6 +1003,10 @@ function calc(){
   q.netDispAmt   = (q.netMode === 'manual') ? q.netManual : netAmt;
   q.netDispTax   = (q.netMode === 'manual') ? q.netTax    : 'excl';
   q.netDispLabel = 'NET金額（' + (q.netDispTax === 'incl' ? '税込' : '税抜') + '）';
+  /* 税込表示用NET金額（PDFに必ず税込で表示するために使用） */
+  q.netInclAmt   = (q.netMode === 'manual' && q.netTax === 'incl')
+      ? q.netManual
+      : Math.round((q.netMode === 'manual' ? q.netManual : netAmt) * 1.1);
 
   /* 実NET粗利 = NET金額(税抜) − ガラス材料原価 − コーキング材料原価 */
   var netProfit     = netAmt - totalMatCost;
@@ -1181,7 +1185,7 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     h += '<div class="customer-total-plain">';
     h += '<div class="quote-line">見積金額合計：' + fmt(quoteAmt) + ' 円</div>';
     if(q.showNET){
-      h += '<div class="net-line">NET ¥' + fmt(q.netDispAmt) + '円（' + (q.netDispTax === 'incl' ? '税込' : '税抜') + '）</div>';
+      h += '<div class="net-line">NET（税込） ¥' + fmt(q.netInclAmt) + '円</div>';
     }
     h += '</div>';
 
@@ -1191,7 +1195,7 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     h += '<div class="mt-row" style="background:#fff8e1"><span>' + makeMiscLabel(totals) + '</span><span>' + fmt(totals.misc) + '</span></div>';
     if(s.discAmt > 0) h += '<div class="mt-row" style="background:#fef3f3"><span>値引き</span><span>▲ ' + fmt(s.discAmt) + '</span></div>';
     h += '<div class="mt-row" style="background:#0d2b50;color:#fff;font-weight:800"><span>見積金額合計</span><span>' + fmt(quoteAmt) + '</span></div>';
-    if(q.showNET) h += '<div class="mt-row" style="background:#e8f5e9"><span>' + q.netDispLabel + '</span><span>' + fmt(q.netDispAmt) + '</span></div>';
+    if(q.showNET) h += '<div class="mt-row" style="background:#e8f5e9"><span>NET（税込）</span><span>' + fmt(q.netInclAmt) + '</span></div>';
     h += '</div>';
   }
 
@@ -1237,10 +1241,10 @@ function renderSummary(totals, netAmt, quoteAmt, s, q, netProfit, netProfitRate)
     qh += '<div class="quote-row"><span class="ql">社内計算粗利</span><span class="qv">¥ ' + fmt(totals.iProfit) + '　(' + totals.profitRate.toFixed(1) + '%)</span></div>';
   }
   if(q.showNET){
-    qh += '<div class="quote-row"><span class="ql">' + q.netDispLabel + '</span><span class="qv">¥ ' + fmt(q.netDispAmt) + '</span></div>';
-    if(q.netMode !== 'manual'){
-      qh += '<div class="quote-row"><span class="ql">NET金額（税込）</span><span class="qv">¥ ' + fmt(Math.round(netAmt * 1.1)) + '</span></div>';
+    if(!(q.netMode === 'manual' && q.netTax === 'incl')){
+      qh += '<div class="quote-row"><span class="ql">' + q.netDispLabel + '</span><span class="qv">¥ ' + fmt(q.netDispAmt) + '</span></div>';
     }
+    qh += '<div class="quote-row" style="font-weight:700"><span class="ql">NET（税込）</span><span class="qv">¥ ' + fmt(q.netInclAmt) + '</span></div>';
     if(isInt){
       qh += '<div class="quote-row" style="background:#e8f5e9;border-radius:4px;padding:4px 2px"><span class="ql"><strong>実NET粗利</strong></span><span class="qv"><strong>¥ ' + fmt(netProfit) + '</strong></span></div>';
       qh += '<div class="quote-row"><span class="ql">実NET粗利率</span><span class="qv">' + netProfitRate.toFixed(1) + '%</span></div>';
@@ -1282,10 +1286,10 @@ function renderPrintSummary(totals, netAmt, quoteAmt, s, q, netProfit, netProfit
     /* 社内用：合計→NET→原価→粗利の順で表示 */
     ph += '<div class="print-summary-row"><span>社内計算合計（税抜）</span><span>¥ ' + fmt(totals.iGrand) + '</span></div>';
     ph += '<div class="print-summary-row"><span>社内計算合計（税込）</span><span>¥ ' + fmt(Math.round(totals.iGrand * 1.1)) + '</span></div>';
-    ph += '<div class="print-summary-row" style="font-weight:700"><span>' + q.netDispLabel + '</span><span>¥ ' + fmt(q.netDispAmt) + '</span></div>';
-    if(q.netMode !== 'manual'){
-      ph += '<div class="print-summary-row" style="font-weight:700"><span>NET金額（税込）</span><span>¥ ' + fmt(Math.round(netAmt * 1.1)) + '</span></div>';
+    if(!(q.netMode === 'manual' && q.netTax === 'incl')){
+      ph += '<div class="print-summary-row" style="font-weight:700"><span>' + q.netDispLabel + '</span><span>¥ ' + fmt(q.netDispAmt) + '</span></div>';
     }
+    ph += '<div class="print-summary-row" style="font-weight:900;background:#e8f5e9;border-radius:3px;padding:0 2px"><span>NET（税込）</span><span>¥ ' + fmt(q.netInclAmt) + '</span></div>';
     ph += '<div class="print-summary-row" style="border-top:1px solid #ccc;margin-top:1mm;padding-top:1mm"><span>ガラス材料原価</span><span>¥ ' + fmt(totals.iSumMAT) + '</span></div>';
     if(totals.iSumCKMAT > 0){
       ph += '<div class="print-summary-row"><span>コーキング材料原価</span><span>¥ ' + fmt(totals.iSumCKMAT) + '</span></div>';
@@ -1296,10 +1300,10 @@ function renderPrintSummary(totals, netAmt, quoteAmt, s, q, netProfit, netProfit
   } else {
     /* 元請け用：原価・粗利は非表示 */
     if(q.showNET){
-      ph += '<div class="print-summary-row" style="font-weight:700"><span>' + q.netDispLabel + '</span><span>¥ ' + fmt(q.netDispAmt) + '</span></div>';
-      if(q.netMode !== 'manual'){
-        ph += '<div class="print-summary-row" style="font-weight:700"><span>NET金額（税込）</span><span>¥ ' + fmt(Math.round(netAmt * 1.1)) + '</span></div>';
+      if(!(q.netMode === 'manual' && q.netTax === 'incl')){
+        ph += '<div class="print-summary-row" style="font-weight:700"><span>' + q.netDispLabel + '</span><span>¥ ' + fmt(q.netDispAmt) + '</span></div>';
       }
+      ph += '<div class="print-summary-row" style="font-weight:900;background:#e8f5e9;border-radius:3px;padding:0 2px"><span>NET（税込）</span><span>¥ ' + fmt(q.netInclAmt) + '</span></div>';
     }
     if(q.showQA){
       ph += '<div class="print-summary-row"><span>お見積書金額（税抜）</span><span>¥ ' + fmt(quoteAmt) + '</span></div>';
