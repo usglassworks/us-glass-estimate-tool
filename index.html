@@ -450,7 +450,7 @@ tfoot td.l{text-align:left}
             <label style="font-weight:700;min-width:90px">NET金額</label>
             <label><input type="radio" name="netMode" value="auto" checked onchange="calc()"> 自動</label>
             <label><input type="radio" name="netMode" value="manual" onchange="calc()"> 手入力</label>
-            <input type="number" id="net-manual" value="0" min="0" step="100" style="width:110px" oninput="calc()">
+            <input type="text" inputmode="numeric" id="net-manual" value="0" style="width:110px" oninput="calc()">
             <label><input type="radio" name="netTax" value="excl" checked onchange="calc()"> 税抜</label>
             <label><input type="radio" name="netTax" value="incl" onchange="calc()"> 税込</label>
           </div>
@@ -471,7 +471,7 @@ tfoot td.l{text-align:left}
           </div>
           <div class="srow" id="qa-manual-row" style="display:none">
             <label style="min-width:90px"></label>
-            <input type="number" id="qa-manual" value="0" min="0" step="100" style="width:130px" oninput="calc()">
+            <input type="text" inputmode="numeric" id="qa-manual" value="0" style="width:130px" oninput="calc()">
             <label><input type="radio" name="qaTax" value="excl" checked onchange="calc()"> 税抜</label>
             <label><input type="radio" name="qaTax" value="incl" onchange="calc()"> 税込</label>
           </div>
@@ -738,6 +738,11 @@ function readSettings(){
           ckUnitPrice:ckUnitPrice, ckCoverage:ckCoverage};
 }
 
+/* 金額文字列をパース（カンマ対応） */
+function parseAmt(v){
+  return parseFloat(String(v||"").replace(/,/g,"").trim()) || 0;
+}
+
 function readQuote(){
   var title      = (gv('q-title') ||{value:'お見積書'}).value || 'お見積書';
   var addressee  = (gv('q-addr')  ||{value:''}).value || '';
@@ -748,11 +753,11 @@ function readQuote(){
   var showNET    = gv('show-net') ? gv('show-net').checked : true;
   var showQA     = gv('show-qa')  ? gv('show-qa').checked  : true;
   var netMode    = globalRadio('netMode') || 'auto';
-  var netManual  = parseFloat((gv('net-manual')||{value:0}).value) || 0;
+  var netManual  = parseAmt((gv('net-manual')||{value:'0'}).value);
   var netTax     = globalRadio('netTax') || 'excl';
   var qaMode     = globalRadio('qaMode') || 'detail';
   var qaNM       = parseFloat((gv('qa-net-mult')||{value:1.25}).value) || 1.25;
-  var qaManual   = parseFloat((gv('qa-manual')  ||{value:0}).value) || 0;
+  var qaManual   = parseAmt((gv('qa-manual')  ||{value:'0'}).value);
   var qaTax      = globalRadio('qaTax') || 'excl';
   return {title:title, addressee:addressee, caseName:caseName, date:date,
           number:number, notes:notes, showNET:showNET, showQA:showQA,
@@ -1193,7 +1198,7 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
 ══════════════════════════════════════════════ */
 function renderSummary(totals, netAmt, quoteAmt, s, q, netProfit, netProfitRate){
   var isInt = viewMode === 'internal';
-  var grand = isInt ? totals.iGrand : totals.cGrand;
+  var grand = isInt ? totals.iGrand : quoteAmt;
 
   gv('total-lbl').textContent = isInt ? '合計金額（社内）' : '見積金額合計（元請け）';
   gv('total-amt').textContent = '¥ ' + fmt(grand);
@@ -1281,14 +1286,18 @@ function renderPrintSummary(totals, netAmt, quoteAmt, s, q, netProfit, netProfit
     ph += '<div class="print-summary-row" style="font-weight:900;background:#e8f5e9;border-radius:3px;padding:1mm 2mm"><span>実NET粗利</span><span>¥ ' + fmt(netProfit) + '　（' + netProfitRate.toFixed(1) + '%）</span></div>';
   } else {
     /* 元請け用：原価・粗利は非表示 */
+    if(q.showNET){
+      ph += '<div class="print-summary-row" style="font-weight:700"><span>NET金額（税抜）</span><span>¥ ' + fmt(netAmt) + '</span></div>';
+      ph += '<div class="print-summary-row" style="font-weight:700"><span>NET金額（税込）</span><span>¥ ' + fmt(Math.round(netAmt * 1.1)) + '</span></div>';
+    }
     if(q.showQA){
       ph += '<div class="print-summary-row"><span>お見積書金額（税抜）</span><span>¥ ' + fmt(quoteAmt) + '</span></div>';
       ph += '<div class="print-summary-row"><span>消費税（10%）</span><span>¥ ' + fmt(Math.round(quoteAmt * 0.1)) + '</span></div>';
       ph += '<div class="print-summary-row" style="font-weight:900"><span>お見積書金額（税込）</span><span>¥ ' + fmt(Math.round(quoteAmt * 1.1)) + '</span></div>';
     } else {
-      ph += '<div class="print-summary-row"><span>お見積書金額（税抜）</span><span>¥ ' + fmt(totals.cGrand) + '</span></div>';
-      ph += '<div class="print-summary-row"><span>消費税（10%）</span><span>¥ ' + fmt(Math.round(totals.cGrand * 0.1)) + '</span></div>';
-      ph += '<div class="print-summary-row" style="font-weight:900"><span>お見積書金額（税込）</span><span>¥ ' + fmt(Math.round(totals.cGrand * 1.1)) + '</span></div>';
+      ph += '<div class="print-summary-row"><span>お見積書金額（税抜）</span><span>¥ ' + fmt(quoteAmt) + '</span></div>';
+      ph += '<div class="print-summary-row"><span>消費税（10%）</span><span>¥ ' + fmt(Math.round(quoteAmt * 0.1)) + '</span></div>';
+      ph += '<div class="print-summary-row" style="font-weight:900"><span>お見積書金額（税込）</span><span>¥ ' + fmt(Math.round(quoteAmt * 1.1)) + '</span></div>';
     }
   }
   if(q.notes) ph += '<div style="font-size:10px;color:#555;margin-top:2mm;border-top:1px solid #ddd;padding-top:2mm">備考：' + escH(q.notes) + '</div>';
