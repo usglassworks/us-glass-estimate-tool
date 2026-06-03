@@ -2,6 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>ユーエス硝子 ガラス積算ツール</title>
 
@@ -693,6 +696,7 @@ var DEFAULT_CR = {
 };
 
 var DEFAULT_OTHER = {ckNormal:0, ckFire:0, ckRemoval:0, disposal:0, mirrorLabor:0, doorPulley:0};
+var CR_SCHEMA = 2; /* bump when DEFAULT_CR gains new keys or changes values */
 
 var GP    = Object.assign({}, DEFAULT_GP);
 var CR    = Object.assign({}, DEFAULT_CR);
@@ -1391,6 +1395,7 @@ function toggleMasterPanel(){
   var isOpen = inner.style.display !== 'none';
   inner.style.display = isOpen ? 'none' : '';
   if(arrow) arrow.className = 'settings-hdr-arrow' + (isOpen ? '' : ' open');
+  if(!isOpen) renderMasterPanel(); /* re-render to reflect current CR values */
 }
 
 /* ══════════════════════════════════════════════
@@ -2433,11 +2438,15 @@ function loadDefaultSettings(){
 
 function loadMasterPrices(){
   try {
-    var sGP  = localStorage.getItem('usglass_GP');
-    var sCR  = localStorage.getItem('usglass_CR');
-    var sOTH = localStorage.getItem('usglass_OTHER');
+    var sGP    = localStorage.getItem('usglass_GP');
+    var sCR    = localStorage.getItem('usglass_CR');
+    var sCRVer = parseInt(localStorage.getItem('usglass_CR_schema') || '1');
+    var sOTH   = localStorage.getItem('usglass_OTHER');
     if(sGP)  GP    = Object.assign({}, DEFAULT_GP, JSON.parse(sGP));
     if(sCR)  CR    = Object.assign({}, DEFAULT_CR, JSON.parse(sCR));
+    /* schema v1→v2 migration: FL10 was 0 in old default → promote to 1800 */
+    if(sCRVer < 2 && CR['FL10'] === 0) CR['FL10'] = DEFAULT_CR['FL10'];
+    if(sCRVer < CR_SCHEMA) localStorage.setItem('usglass_CR_schema', CR_SCHEMA);
     if(sOTH) OTHER = Object.assign({}, DEFAULT_OTHER, JSON.parse(sOTH));
   } catch(e){}
 }
