@@ -681,10 +681,15 @@ var DEFAULT_GP = {
 };
 
 var DEFAULT_CR = {
-  'FL5':0,'FL6':0,'FL8':0,'FL10':0,'FL12':0,
+  'FL5':0,'FL6':0,'FL8':0,'FL10':1800,'FL12':0,
   'F6':0,'Fw':0,'pw':0,
   'グリーンラル6':0,'グリーンラル8':0,
-  'スリガラス3':0,'スリガラス5':0,'スリガラス6':0
+  'スリガラス3':0,'スリガラス5':0,'スリガラス6':0,
+  '3+3透明':1200,'4+4透明':1400,'5+5透明':1800,
+  '3+3乳半':1200,'4+4乳半':1400,
+  'ラミブロック3+3透明':1200,'ラミブロック4+4透明':1400,
+  'ラミブロック3+3乳半':1200,'ラミブロック4+4乳半':1400,
+  '耐熱5':1500,'耐熱8':2000
 };
 
 var DEFAULT_OTHER = {ckNormal:0, ckFire:0, ckRemoval:0, disposal:0, mirrorLabor:0, doorPulley:0};
@@ -716,7 +721,15 @@ var _driveLastClientId   = null;
 function fmt(n){ return Math.round(n).toLocaleString('ja-JP'); }
 function fmtA(n){ return (+n).toFixed(3); }
 function gv(id){ return document.getElementById(id); }
-function getRate(t){ return CR[t] !== undefined ? CR[t] : 0; }
+function normalizeGlassKey(t){
+  if(!t) return t;
+  var s = String(t).trim();
+  s = s.replace(/^合わせ\s*/,'');          /* 合わせ3+3透明 → 3+3透明 */
+  s = s.replace(/^ラミブロック\s+/,'ラミブロック'); /* ラミブロック 3+3 → ラミブロック3+3 */
+  s = s.replace(/^(耐熱\d+)mm$/, '$1');         /* 耐熱5mm → 耐熱5 */
+  return s;
+}
+function getRate(t){ var k = normalizeGlassKey(t); return CR[k] !== undefined ? CR[k] : 0; }
 function isCustom(t){ return !!CUSTOM_TYPES[t]; }
 function isMirror(t){ return !!MIRRORS[t]; }
 
@@ -2344,7 +2357,11 @@ var GP_KEYS = ['FL2','FL3','FL5','FL6','FL8','FL10','FL12','F6','Fw','pw',
                '耐熱5','耐熱8'];
 var CR_KEYS = ['FL5','FL6','FL8','FL10','FL12','F6','Fw','pw',
                'グリーンラル6','グリーンラル8',
-               'スリガラス3','スリガラス5','スリガラス6'];
+               'スリガラス3','スリガラス5','スリガラス6',
+               '3+3透明','4+4透明','5+5透明','3+3乳半','4+4乳半',
+               'ラミブロック3+3透明','ラミブロック4+4透明',
+               'ラミブロック3+3乳半','ラミブロック4+4乳半',
+               '耐熱5','耐熱8'];
 
 function renderMasterPanel(){
   var gpGrid = gv('mp-gp-grid');
@@ -2419,8 +2436,8 @@ function loadMasterPrices(){
     var sGP  = localStorage.getItem('usglass_GP');
     var sCR  = localStorage.getItem('usglass_CR');
     var sOTH = localStorage.getItem('usglass_OTHER');
-    if(sGP)  GP    = JSON.parse(sGP);
-    if(sCR)  CR    = JSON.parse(sCR);
+    if(sGP)  GP    = Object.assign({}, DEFAULT_GP, JSON.parse(sGP));
+    if(sCR)  CR    = Object.assign({}, DEFAULT_CR, JSON.parse(sCR));
     if(sOTH) OTHER = Object.assign({}, DEFAULT_OTHER, JSON.parse(sOTH));
   } catch(e){}
 }
@@ -3055,10 +3072,16 @@ function _convertDrawingItem(item){
     'グリーンラル6':'グリーンラル6','グリーンラル8':'グリーンラル8',
     'スリガラス3':'スリガラス3','スリガラス5':'スリガラス5','スリガラス6':'スリガラス6',
     'Yカガミ3':'Yカガミ3','Yカガミ5':'Yカガミ5','Yカガミ6':'Yカガミ6',
-    '3+3透明':'3+3透明','4+4透明':'4+4透明','5+5透明':'5+5透明','3+3乳半':'3+3乳半','4+4乳半':'4+4乳半',
-    'ラミブロック3+3透明':'ラミブロック3+3透明','ラミブロック4+4透明':'ラミブロック4+4透明',
-    'ラミブロック3+3乳半':'ラミブロック3+3乳半','ラミブロック4+4乳半':'ラミブロック4+4乳半',
-    '耐熱5':'耐熱5','耐熱8':'耐熱8',
+    '3+3透明':'3+3透明','合わせ3+3透明':'3+3透明','合わせ 3+3透明':'3+3透明',
+    '4+4透明':'4+4透明','合わせ4+4透明':'4+4透明','合わせ 4+4透明':'4+4透明',
+    '5+5透明':'5+5透明','合わせ5+5透明':'5+5透明','合わせ 5+5透明':'5+5透明',
+    '3+3乳半':'3+3乳半','合わせ3+3乳半':'3+3乳半','合わせ 3+3乳半':'3+3乳半',
+    '4+4乳半':'4+4乳半','合わせ4+4乳半':'4+4乳半','合わせ 4+4乳半':'4+4乳半',
+    'ラミブロック3+3透明':'ラミブロック3+3透明','ラミブロック 3+3透明':'ラミブロック3+3透明',
+    'ラミブロック4+4透明':'ラミブロック4+4透明','ラミブロック 4+4透明':'ラミブロック4+4透明',
+    'ラミブロック3+3乳半':'ラミブロック3+3乳半','ラミブロック 3+3乳半':'ラミブロック3+3乳半',
+    'ラミブロック4+4乳半':'ラミブロック4+4乳半','ラミブロック 4+4乳半':'ラミブロック4+4乳半',
+    '耐熱5':'耐熱5','耐熱5mm':'耐熱5','耐熱8':'耐熱8','耐熱8mm':'耐熱8',
     '複層ガラス':'複層ガラス','LOW-E複層':'LOW-E複層','特注品':'特注品'
   };
   return {
