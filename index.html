@@ -389,10 +389,10 @@ tfoot td.l{text-align:left}
     <button type="button" class="btn-preview" style="background:#5d4037" onclick="sendToManager()">現場管理に送る</button>
     <button type="button" class="btn-pdf" onclick="printPDF()">PDF出力（A4 横）</button>
     <button type="button" class="btn-reset-est" onclick="resetEstimate()">明細をリセット</button>
-    <button type="button" class="btn-preview" style="background:#1b5e20" onclick="copyAllEstToOrderDim()">積算→発注 全コピー</button>
-    <button type="button" class="btn-preview" style="background:#00695c" onclick="copyOrderSheetJSON()">寸法表JSONコピー</button>
-    <button type="button" class="btn-preview" style="background:#00695c" onclick="downloadOrderSheetJSON()">寸法表JSON保存</button>
-    <button type="button" class="btn-preview" style="background:#1565c0" onclick="openOrderSheetTool()">寸法表ツールを開く</button>
+    <button type="button" id="copyAllOrderDimBtn" class="btn-preview" style="background:#1b5e20" onclick="copyAllEstToOrderDim()">積算→発注 全コピー</button>
+    <button type="button" id="orderSheetCopyBtn"  class="btn-preview" style="background:#00695c" onclick="copyOrderSheetJSON()">寸法表JSONコピー</button>
+    <button type="button" id="orderSheetDlBtn"    class="btn-preview" style="background:#00695c" onclick="downloadOrderSheetJSON()">寸法表JSON保存</button>
+    <button type="button" id="orderSheetOpenBtn"  class="btn-preview" style="background:#1565c0" onclick="openOrderSheetTool()">寸法表ツールを開く</button>
   </div>
 
   <!-- 設定パネル -->
@@ -2112,7 +2112,11 @@ function bindButtons(){
   safe('exportMasterBtn',   exportMasterPrices);
   safe('importMasterBtn',   importMasterPrices);
   safe('sendToManagerBtn',  sendToManager);
-  safe('resetEstimateBtn',  resetEstimate);
+  safe('resetEstimateBtn',    resetEstimate);
+  safe('copyAllOrderDimBtn',  copyAllEstToOrderDim);
+  safe('orderSheetCopyBtn',   copyOrderSheetJSON);
+  safe('orderSheetDlBtn',     downloadOrderSheetJSON);
+  safe('orderSheetOpenBtn',   openOrderSheetTool);
 }
 
 window.addEventListener('DOMContentLoaded', function(){ bindButtons(); });
@@ -3337,7 +3341,7 @@ function _getOrderSheetJSON(){
     alert('寸法注文表に出力できる明細がありません。');
     return null;
   }
-  /* 発注寸法未入力チェック */
+  /* 発注寸法未入力チェック（alert で通知・キャンセル不要） */
   var missingCount = 0;
   cards.forEach(function(card){
     var owEl = card.querySelector('.ow');
@@ -3347,14 +3351,16 @@ function _getOrderSheetJSON(){
     if(isNaN(owVal) || owVal <= 0 || isNaN(ohVal) || ohVal <= 0) missingCount++;
   });
   if(missingCount > 0){
-    var ok = confirm(
-      '発注寸法が未入力の明細が ' + missingCount + ' 件あります。\n' +
-      '積算寸法を使って寸法注文表を作成しますか？\n' +
-      '発注前に必ず実寸確認してください。'
-    );
-    if(!ok) return null;
+    alert('発注寸法が未入力の明細が ' + missingCount + ' 件あります。\n' +
+          '積算寸法を使って寸法注文表を出力します。\n' +
+          '発注前に必ず実寸確認してください。');
   }
-  return JSON.stringify(buildOrderSheetPayload(), null, 2);
+  try {
+    return JSON.stringify(buildOrderSheetPayload(), null, 2);
+  } catch(e) {
+    alert('JSON作成に失敗しました: ' + (e.message || String(e)));
+    return null;
+  }
 }
 
 function copyOrderSheetJSON(){
@@ -3393,10 +3399,15 @@ function downloadOrderSheetJSON(){
 }
 
 function openOrderSheetTool(){
-  var json = _getOrderSheetJSON();
-  if(!json) return;
-  try { localStorage.setItem(ORDER_SHEET_LS_KEY, json); } catch(e){}
-  window.open(ORDER_SHEET_URL, '_blank');
+  try {
+    var json = _getOrderSheetJSON();
+    if(!json) return;
+    try { localStorage.setItem(ORDER_SHEET_LS_KEY, json); } catch(e){}
+    var win = window.open(ORDER_SHEET_URL, '_blank');
+    if(!win) alert('ポップアップがブロックされました。\nブラウザの設定でポップアップを許可してください。');
+  } catch(e) {
+    alert('寸法表ツールを開けませんでした: ' + (e.message || String(e)));
+  }
 }
 
 </script>
