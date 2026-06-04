@@ -107,6 +107,8 @@ tfoot td.l{text-align:left}
 .tr-sub td{background:#ecf3fb;border-top:2px solid #1a5f8c}
 .tr-misc td{background:#fff8e1}
 .tr-disc td{background:#fef3f3}
+.tr-outsource td{background:#f3e5f5;border-left:3px solid #7b1fa2}
+.tr-outsource-sub td{background:#ede7f6;border-top:1px solid #9c27b0}
 .tr-grand td{background:#0d2b50;color:#fff;font-size:13px;border-top:2px solid #1a5f8c;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .tr-net td{background:#e8f5e9}
 .tr-quote td{background:#e3f2fd}
@@ -252,6 +254,8 @@ tfoot td.l{text-align:left}
   .tr-sub td{background:#ecf3fb!important;border-top:1px solid #1a5f8c!important}
   .tr-misc td{background:#fff8e1!important}
   .tr-disc td{background:#fef3f3!important}
+  .tr-outsource td{background:#f3e5f5!important;border-left:2px solid #7b1fa2!important}
+  .tr-outsource-sub td{background:#ede7f6!important}
   .tr-grand td{background:#0d2b50!important;color:#fff!important;font-size:9px!important}
   .tr-net td{background:#e8f5e9!important}
   .tr-quote td{background:#e3f2fd!important}
@@ -849,7 +853,13 @@ function getRowData(el){
     addInCost:   el.querySelector('.add-in-cost')  ? el.querySelector('.add-in-cost').checked  : false,
     addInSales:  el.querySelector('.add-in-sales') ? el.querySelector('.add-in-sales').checked : false,
     addInCust:   el.querySelector('.add-in-cust')  ? el.querySelector('.add-in-cust').checked  : false,
-    fixtureNo:   (el.querySelector('.fixture-no')  || {value:''}).value || ''
+    fixtureNo:   (el.querySelector('.fixture-no')  || {value:''}).value || '',
+    itemCategory:     (el.querySelector('.item-category')      ||{value:'ガラス'}).value || 'ガラス',
+    outsourceCost:    parseFloat((el.querySelector('.outsource-cost')  ||{value:0}).value) || 0,
+    internalPrice:    parseFloat((el.querySelector('.internal-price')  ||{value:0}).value) || 0,
+    customerPrice:    parseFloat((el.querySelector('.customer-price')  ||{value:0}).value) || 0,
+    applyCustomerMult: el.querySelector('.apply-customer-mult') ? el.querySelector('.apply-customer-mult').checked : false,
+    itemNote:         (el.querySelector('.item-note')           ||{value:''}).value || ''
   };
 }
 
@@ -862,6 +872,30 @@ function calcRow(d){
   var mult = d.sellMult || 2.0;
   var mirror = isMirror(d.g);
   var custom = isCustom(d.g);
+  var cat = d.itemCategory || 'ガラス';
+  var isOutsource = custom && (cat !== 'ガラス');
+
+  /* 外注系（外注工事・フィルム工事・その他工事・部材・諸経費）の計算 */
+  if(isOutsource){
+    var outsourceCostAmt  = d.outsourceCost  || 0;
+    var internalSellAmt   = d.internalPrice  || 0;
+    var customerSellAmt   = d.customerPrice  || 0;
+    var applyMult         = !!d.applyCustomerMult;
+    return {
+      area:0, materialCost:outsourceCostAmt, glassPrice:0,
+      constructionBase:0, removalCost:0,
+      caulkMeters:0, caulkingCost:0, caulkingRemoval:0, ckrRate:0,
+      caulkMatCost:0, caulkBottles:0, disposalCost:0, addAmt:0,
+      rowTotal:internalSellAmt,
+      profitRow:internalSellAmt - outsourceCostAmt,
+      mult:1, cr:0, mirror:false, custom:true,
+      isOutsource:true, itemCategory:cat,
+      outsourceCostAmt:outsourceCostAmt,
+      internalSellAmt:internalSellAmt,
+      applyCustomerMult:applyMult,
+      customerSellAmt:customerSellAmt
+    };
+  }
 
   /* 材料原価・ガラス売価 */
   var materialCost, glassPrice;
@@ -977,21 +1011,27 @@ function calc(){
   /* 社内合計 */
   var iSumGP=0,iSumCC=0,iSumRC=0,iSumCK=0,iSumCKR=0,iSumDC=0,iSumADD=0,iSumMAT=0,iSumCKMAT=0;
   var iSumCKM=0; /* コーキングM数合計 */
+  var iSumOUTCOST=0, iSumOUTSELL=0; /* 外注系合計 */
   for(var i = 0; i < calcs.length; i++){
     var c = calcs[i];
-    iSumGP    += c.glassPrice;
-    iSumCC    += c.constructionBase;
-    iSumRC    += c.removalCost;
-    iSumCK    += c.caulkingCost;
-    iSumCKR   += c.caulkingRemoval;
-    iSumDC    += c.disposalCost;
-    iSumMAT   += c.materialCost;
-    iSumCKMAT += (c.caulkMatCost || 0);
-    iSumCKM   += (c.caulkMeters  || 0);
-    if(datas[i].addInSales) iSumADD += c.addAmt;
+    if(c.isOutsource){
+      iSumOUTCOST += c.outsourceCostAmt;
+      iSumOUTSELL += c.internalSellAmt;
+    } else {
+      iSumGP    += c.glassPrice;
+      iSumCC    += c.constructionBase;
+      iSumRC    += c.removalCost;
+      iSumCK    += c.caulkingCost;
+      iSumCKR   += c.caulkingRemoval;
+      iSumDC    += c.disposalCost;
+      iSumCKMAT += (c.caulkMatCost || 0);
+      iSumCKM   += (c.caulkMeters  || 0);
+      if(datas[i].addInSales) iSumADD += c.addAmt;
+    }
+    iSumMAT += c.materialCost;
   }
   var totalMatCost = iSumMAT + iSumCKMAT;
-  var iSub   = iSumGP + iSumCC + iSumRC + iSumCK + iSumCKR + iSumDC + iSumADD;
+  var iSub   = iSumGP + iSumCC + iSumRC + iSumCK + iSumCKR + iSumDC + iSumADD + iSumOUTSELL;
   var iGrand = iSub + misc - s.discAmt;
   var iProfit = 0;
   for(var i = 0; i < calcs.length; i++) iProfit += calcs[i].profitRow;
@@ -1002,29 +1042,47 @@ function calc(){
   var cDisp = [];
   for(var i = 0; i < calcs.length; i++){
     var c = calcs[i], dd = datas[i];
-    cDisp.push({
-      glassPrice:       Math.round(c.glassPrice       * s.multG),
-      constructionBase: Math.round(c.constructionBase * s.multC),
-      removalCost:      Math.round(c.removalCost      * s.multC),
-      caulkingCost:     Math.round(c.caulkingCost     * s.multK),
-      caulkingRemoval:  Math.round(c.caulkingRemoval  * s.multKR),
-      disposalCost:     Math.round(c.disposalCost     * s.multD),
-      addAmt:           dd.addInCust ? c.addAmt : 0
-    });
+    if(c.isOutsource){
+      var custSell = c.applyCustomerMult
+        ? Math.round(c.internalSellAmt * s.multG)
+        : c.customerSellAmt;
+      cDisp.push({
+        glassPrice:0, constructionBase:0, removalCost:0,
+        caulkingCost:0, caulkingRemoval:0, disposalCost:0, addAmt:0,
+        isOutsource:true, outsourceCustomerSell:custSell,
+        itemCategory:c.itemCategory
+      });
+    } else {
+      cDisp.push({
+        glassPrice:       Math.round(c.glassPrice       * s.multG),
+        constructionBase: Math.round(c.constructionBase * s.multC),
+        removalCost:      Math.round(c.removalCost      * s.multC),
+        caulkingCost:     Math.round(c.caulkingCost     * s.multK),
+        caulkingRemoval:  Math.round(c.caulkingRemoval  * s.multKR),
+        disposalCost:     Math.round(c.disposalCost     * s.multD),
+        addAmt:           dd.addInCust ? c.addAmt : 0,
+        isOutsource:false
+      });
+    }
   }
 
   var cSumGP=0,cSumCC=0,cSumRC=0,cSumCK=0,cSumCKR=0,cSumDC=0,cSumADD=0;
+  var cSumOUTSELL=0;
   for(var i = 0; i < cDisp.length; i++){
     var cd = cDisp[i];
-    cSumGP  += cd.glassPrice;
-    cSumCC  += cd.constructionBase;
-    cSumRC  += cd.removalCost;
-    cSumCK  += cd.caulkingCost;
-    cSumCKR += cd.caulkingRemoval;
-    cSumDC  += cd.disposalCost;
-    cSumADD += cd.addAmt;
+    if(cd.isOutsource){
+      cSumOUTSELL += cd.outsourceCustomerSell;
+    } else {
+      cSumGP  += cd.glassPrice;
+      cSumCC  += cd.constructionBase;
+      cSumRC  += cd.removalCost;
+      cSumCK  += cd.caulkingCost;
+      cSumCKR += cd.caulkingRemoval;
+      cSumDC  += cd.disposalCost;
+      cSumADD += cd.addAmt;
+    }
   }
-  var cSub   = cSumGP + cSumCC + cSumRC + cSumCK + cSumCKR + cSumDC + cSumADD;
+  var cSub   = cSumGP + cSumCC + cSumRC + cSumCK + cSumCKR + cSumDC + cSumADD + cSumOUTSELL;
   var cGrand = cSub + misc - s.discAmt;
 
   var totals = {
@@ -1033,8 +1091,10 @@ function calc(){
     iSumMAT:iSumMAT, iSumCKMAT:iSumCKMAT, totalMatCost:totalMatCost,
     iSumCKM:iSumCKM, iSub:iSub, iGrand:iGrand,
     iProfit:iProfit, profitRate:profitRate,
+    iSumOUTCOST:iSumOUTCOST, iSumOUTSELL:iSumOUTSELL,
     cSumGP:cSumGP, cSumCC:cSumCC, cSumRC:cSumRC,
     cSumCK:cSumCK, cSumCKR:cSumCKR, cSumDC:cSumDC, cSumADD:cSumADD,
+    cSumOUTSELL:cSumOUTSELL,
     cSub:cSub, cGrand:cGrand,
     misc:misc, totalQty:totalQty
   };
@@ -1114,6 +1174,24 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
       var d = datas[i], c = calcs[i];
       var dim = (d.w && d.h) ? d.w + ' × ' + d.h : '—';
       var pname = (d.customName && isCustom(d.g)) ? d.customName : d.g;
+      if(c.isOutsource){
+        var catLabel = c.itemCategory || '外注';
+        var noteStr = d.itemNote ? ('　備考：' + escH(d.itemNote)) : '';
+        h += '<tr class="tr-outsource">';
+        h += '<td class="c" data-label="No.">' + (i+1) + '</td>';
+        h += '<td class="l" data-label="建具番号">' + (d.fixtureNo ? escH(d.fixtureNo) : '—') + '</td>';
+        h += '<td class="l" data-label="寸法">—</td>';
+        h += '<td class="l" data-label="品名"><strong>[' + escH(catLabel) + ']</strong> ' + escH(pname) + noteStr + '</td>';
+        h += '<td class="c" data-label="枚数">—</td>';
+        h += '<td colspan="15" style="text-align:left;font-size:12px;color:#444" data-label="外注">' +
+             '外注原価&ensp;<strong>' + fmt(c.outsourceCostAmt) + '</strong>' +
+             '&emsp;→&emsp;社内売価&ensp;<strong>' + fmt(c.internalSellAmt) + '</strong>' +
+             '</td>';
+        h += '<td class="td-total" data-label="行合計"><strong>' + fmt(c.internalSellAmt) + '</strong></td>';
+        h += '<td data-label="粗利">' + fmt(c.profitRow) + '</td>';
+        h += '</tr>';
+        continue;
+      }
       var ckr_disp = d.caulkRate > 0 ? d.caulkRate : (d.fire ? OTHER.ckFire : OTHER.ckNormal);
       var up = isCustom(d.g) ? (d.priceMode === 'sqm' ? d.customSqm : '—') : (GP[d.g] || 0);
       var rowT = c.glassPrice + c.constructionBase + c.removalCost
@@ -1146,14 +1224,20 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     }
     h += '</tbody><tfoot>';
     h += '<tr class="tr-sub">';
-    h += '<td colspan="5" class="l">小計</td><td>—</td><td>—</td>';
+    h += '<td colspan="5" class="l">小計（ガラス系）</td><td>—</td><td>—</td>';
     h += '<td>' + fmt(totals.iSumMAT) + '</td><td>—</td>';
     h += '<td>' + fmt(totals.iSumGP) + '</td><td>—</td>';
     h += '<td>' + fmt(totals.iSumCC) + '</td><td>' + fmt(totals.iSumRC) + '</td>';
     h += '<td>—</td><td>—</td><td>' + fmt(totals.iSumCK) + '</td>';
     h += '<td>—</td><td>' + fmt(totals.iSumCKR) + '</td>';
     h += '<td>' + fmt(totals.iSumDC) + '</td><td>' + fmt(totals.iSumADD) + '</td>';
-    h += '<td><strong>' + fmt(totals.iSub) + '</strong></td><td>—</td></tr>';
+    h += '<td><strong>' + fmt(totals.iSub - totals.iSumOUTSELL) + '</strong></td><td>—</td></tr>';
+    if(totals.iSumOUTSELL > 0 || totals.iSumOUTCOST > 0){
+      h += '<tr class="tr-outsource-sub"><td colspan="5" class="l">外注系合計</td>';
+      h += '<td colspan="2">外注原価合計</td><td>' + fmt(totals.iSumOUTCOST) + '</td>';
+      h += '<td colspan="2">外注売価合計</td>';
+      h += '<td colspan="11" class="td-total"><strong>' + fmt(totals.iSumOUTSELL) + '</strong></td><td>—</td></tr>';
+    }
     h += '<tr class="tr-misc"><td colspan="21" class="l">' + makeMiscLabel(totals) + '</td>';
     h += '<td><strong>' + fmt(totals.misc) + '</strong></td></tr>';
     if(s.discAmt > 0){
@@ -1191,6 +1275,20 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
       var d = datas[i], c = calcs[i], cd = cDisp[i];
       var dim = (d.w && d.h) ? d.w + ' × ' + d.h : '—';
       var pname = (d.customName && isCustom(d.g)) ? d.customName : d.g;
+      if(cd.isOutsource){
+        var catLabel = cd.itemCategory || '外注';
+        var noteStr = d.itemNote ? ('　' + escH(d.itemNote)) : '';
+        h += '<tr>';
+        h += '<td class="c" data-label="No.">' + (i+1) + '</td>';
+        h += '<td class="l" data-label="建具番号">' + (d.fixtureNo ? escH(d.fixtureNo) : '—') + '</td>';
+        h += '<td class="l" data-label="品名"><strong>[' + escH(catLabel) + ']</strong> ' + escH(pname) + noteStr + '</td>';
+        h += '<td class="l" data-label="寸法">—</td>';
+        h += '<td class="c" data-label="枚数">—</td>';
+        h += '<td colspan="7" style="text-align:center;color:#777;font-size:12px" data-label="">—</td>';
+        h += '<td class="td-total" data-label="小計"><strong>' + fmt(cd.outsourceCustomerSell) + '</strong></td>';
+        h += '</tr>';
+        continue;
+      }
       var rowT = cd.glassPrice + cd.constructionBase + cd.removalCost
                + cd.caulkingCost + cd.caulkingRemoval + cd.disposalCost + cd.addAmt;
       h += '<tr>';
@@ -1278,12 +1376,15 @@ function renderSummary(totals, netAmt, quoteAmt, s, q, netProfit, netProfitRate)
   if(isInt){
     qh += '<div class="quote-row"><span class="ql">社内計算合計（税抜）</span><span class="qv">¥ ' + fmt(totals.iGrand) + '</span></div>';
     qh += '<div class="quote-row"><span class="ql">社内計算合計（税込）</span><span class="qv">¥ ' + fmt(Math.round(totals.iGrand * 1.1)) + '</span></div>';
-    qh += '<div class="quote-row"><span class="ql">ガラス材料原価</span><span class="qv">¥ ' + fmt(totals.iSumMAT) + '</span></div>';
+    qh += '<div class="quote-row"><span class="ql">ガラス材料原価</span><span class="qv">¥ ' + fmt(totals.iSumMAT - totals.iSumOUTCOST) + '</span></div>';
     if(totals.iSumCKMAT > 0){
       qh += '<div class="quote-row"><span class="ql">コーキング施工M数</span><span class="qv">' + totals.iSumCKM.toFixed(3) + ' m</span></div>';
       if(s.ckCoverage) qh += '<div class="quote-row"><span class="ql">1本あたり施工可能</span><span class="qv">' + s.ckCoverage + ' m</span></div>';
       if(s.ckUnitPrice) qh += '<div class="quote-row"><span class="ql">コーキング本体価格</span><span class="qv">¥ ' + fmt(s.ckUnitPrice) + '／本</span></div>';
       qh += '<div class="quote-row"><span class="ql">コーキング材料原価</span><span class="qv">¥ ' + fmt(totals.iSumCKMAT) + '</span></div>';
+    }
+    if(totals.iSumOUTCOST > 0){
+      qh += '<div class="quote-row"><span class="ql">外注原価合計</span><span class="qv">¥ ' + fmt(totals.iSumOUTCOST) + '</span></div>';
     }
     qh += '<div class="quote-row"><span class="ql">材料原価合計</span><span class="qv">¥ ' + fmt(totals.totalMatCost) + '</span></div>';
     qh += '<div class="quote-row"><span class="ql">社内計算粗利</span><span class="qv">¥ ' + fmt(totals.iProfit) + '　(' + totals.profitRate.toFixed(1) + '%)</span></div>';
@@ -1338,9 +1439,12 @@ function renderPrintSummary(totals, netAmt, quoteAmt, s, q, netProfit, netProfit
       ph += '<div class="print-summary-row" style="font-weight:700"><span>' + q.netDispLabel + '</span><span>¥ ' + fmt(q.netDispAmt) + '</span></div>';
     }
     ph += '<div class="print-summary-row" style="font-weight:900;background:#e8f5e9;border-radius:3px;padding:0 2px"><span>NET（税込）</span><span>¥ ' + fmt(q.netInclAmt) + '</span></div>';
-    ph += '<div class="print-summary-row" style="border-top:1px solid #ccc;margin-top:1mm;padding-top:1mm"><span>ガラス材料原価</span><span>¥ ' + fmt(totals.iSumMAT) + '</span></div>';
+    ph += '<div class="print-summary-row" style="border-top:1px solid #ccc;margin-top:1mm;padding-top:1mm"><span>ガラス材料原価</span><span>¥ ' + fmt(totals.iSumMAT - totals.iSumOUTCOST) + '</span></div>';
     if(totals.iSumCKMAT > 0){
       ph += '<div class="print-summary-row"><span>コーキング材料原価</span><span>¥ ' + fmt(totals.iSumCKMAT) + '</span></div>';
+    }
+    if(totals.iSumOUTCOST > 0){
+      ph += '<div class="print-summary-row"><span>外注原価合計</span><span>¥ ' + fmt(totals.iSumOUTCOST) + '</span></div>';
     }
     ph += '<div class="print-summary-row" style="font-weight:700"><span>材料原価合計</span><span>¥ ' + fmt(totals.totalMatCost) + '</span></div>';
     ph += '<div class="print-summary-row"><span>社内計算粗利</span><span>¥ ' + fmt(totals.iProfit) + '　（' + totals.profitRate.toFixed(1) + '%）</span></div>';
@@ -1794,7 +1898,13 @@ function collectRowsData(){
       orderW:          (card.querySelector('.ow')             || {value:''}).value,
       orderH:          (card.querySelector('.oh')             || {value:''}).value,
       orderMemo:       (card.querySelector('.order-memo')     || {value:''}).value,
-      orderConfirmed:  card.querySelector('.order-confirmed') ? card.querySelector('.order-confirmed').checked : false
+      orderConfirmed:  card.querySelector('.order-confirmed') ? card.querySelector('.order-confirmed').checked : false,
+      itemCategory:    (card.querySelector('.item-category')   || {value:'ガラス'}).value || 'ガラス',
+      outsourceCost:   (card.querySelector('.outsource-cost')  || {value:''}).value,
+      internalPrice:   (card.querySelector('.internal-price')  || {value:''}).value,
+      customerPrice:   (card.querySelector('.customer-price')  || {value:''}).value,
+      applyCustomerMult: card.querySelector('.apply-customer-mult') ? card.querySelector('.apply-customer-mult').checked : false,
+      itemNote:        (card.querySelector('.item-note')       || {value:''}).value
     });
   });
   return rows;
@@ -1987,6 +2097,12 @@ function applyRowData(card, row){
   if(card.querySelector('.oh'))           card.querySelector('.oh').value            = row.orderH      || '';
   if(card.querySelector('.order-memo'))   card.querySelector('.order-memo').value    = row.orderMemo   || '';
   if(card.querySelector('.order-confirmed')) card.querySelector('.order-confirmed').checked = !!row.orderConfirmed;
+  if(card.querySelector('.item-category'))     card.querySelector('.item-category').value     = row.itemCategory    || 'ガラス';
+  if(card.querySelector('.outsource-cost'))    card.querySelector('.outsource-cost').value    = row.outsourceCost   || '';
+  if(card.querySelector('.internal-price'))    card.querySelector('.internal-price').value    = row.internalPrice   || '';
+  if(card.querySelector('.customer-price'))    card.querySelector('.customer-price').value    = row.customerPrice   || '';
+  if(card.querySelector('.apply-customer-mult')) card.querySelector('.apply-customer-mult').checked = !!row.applyCustomerMult;
+  if(card.querySelector('.item-note'))         card.querySelector('.item-note').value         = row.itemNote        || '';
   updateOrderDimWarning(card);
   updateRow(card);
 }
@@ -2146,8 +2262,22 @@ function updateRow(card){
 
   if(cf) cf.style.display = isCustom(gType) ? '' : 'none';
 
+  /* 明細区分による切替 */
+  var catSel = card.querySelector('.item-category');
+  var cat = catSel ? catSel.value : 'ガラス';
+  var isOutsource = (cat !== 'ガラス');
+  var glassF = card.querySelector('.custom-glass-fields');
+  var outF   = card.querySelector('.outsource-fields');
+  if(glassF) glassF.style.display = isOutsource ? 'none' : '';
+  if(outF)   outF.style.display   = isOutsource ? '' : 'none';
+  /* 元請け提出金額欄は倍率適用OFFのときのみ表示 */
+  var applyMult = card.querySelector('.apply-customer-mult');
+  var custPriceRow = card.querySelector('.outsource-cust-price-row');
+  if(custPriceRow) custPriceRow.style.display = (applyMult && applyMult.checked) ? 'none' : '';
+
+  /* コーキング欄は外注行では非表示 */
   var fixVal = radio(card, 'fix' + id);
-  if(ckf) ckf.style.display = (fixVal === 'caulking') ? '' : 'none';
+  if(ckf) ckf.style.display = (!isOutsource && fixVal === 'caulking') ? '' : 'none';
 
   var priceMode = radio(card, 'pm' + id);
   var sqmRow  = card.querySelector('.pm-sqm-row');
@@ -2240,33 +2370,61 @@ function addRow(){
       <div class="custom-fields" style="display:none">
         <div class="csec-title">カスタム設定</div>
         <div class="fields-wide">
-          <div class="fg"><span class="fglabel">ガラス名称</span>
+          <div class="fg"><span class="fglabel">明細区分</span>
+            <select class="item-category" onchange="calc();updateRow(this.closest('.row-card'))">
+              <option value="ガラス">ガラス</option>
+              <option value="外注工事">外注工事</option>
+              <option value="フィルム工事">フィルム工事</option>
+              <option value="その他工事">その他工事</option>
+              <option value="部材">部材</option>
+              <option value="諸経費">諸経費</option>
+            </select></div>
+          <div class="fg"><span class="fglabel">ガラス名称 / 品名</span>
             <input type="text" class="custom-name" placeholder="品名（任意）" oninput="calc()"></div>
         </div>
-        <div class="rrow" style="margin-top:8px">
-          <label style="font-size:12px;font-weight:700;color:#555;min-width:70px">計算方法</label>
-          <label><input type="radio" name="pm${id}" value="sqm" checked
-            onchange="calc();updateRow(this.closest('.row-card'))"> A：平米単価</label>
-          <label><input type="radio" name="pm${id}" value="mat"
-            onchange="calc();updateRow(this.closest('.row-card'))"> B：材料原価直接</label>
-          <label><input type="radio" name="pm${id}" value="sell"
-            onchange="calc();updateRow(this.closest('.row-card'))"> C：売価直接</label>
+        <div class="custom-glass-fields">
+          <div class="rrow" style="margin-top:8px">
+            <label style="font-size:12px;font-weight:700;color:#555;min-width:70px">計算方法</label>
+            <label><input type="radio" name="pm${id}" value="sqm" checked
+              onchange="calc();updateRow(this.closest('.row-card'))"> A：平米単価</label>
+            <label><input type="radio" name="pm${id}" value="mat"
+              onchange="calc();updateRow(this.closest('.row-card'))"> B：材料原価直接</label>
+            <label><input type="radio" name="pm${id}" value="sell"
+              onchange="calc();updateRow(this.closest('.row-card'))"> C：売価直接</label>
+          </div>
+          <div class="fields-wide" style="margin-top:8px">
+            <div class="fg pm-sqm-row"><span class="fglabel">A：材料単価 (円/m²)</span>
+              <input type="number" class="custom-sqm" placeholder="0" min="0" step="100" oninput="calc()"></div>
+            <div class="fg pm-mat-row" style="display:none">
+              <span class="fglabel">B：材料原価（円／1枚）</span>
+              <div class="rrow" style="margin-top:4px">
+                <label><input type="radio" name="msc${id}" value="per_unit" checked onchange="calc()"> 1枚あたり原価</label>
+                <label><input type="radio" name="msc${id}" value="total" onchange="calc()"> 明細全体原価</label>
+              </div>
+              <input type="number" class="custom-mat" placeholder="0" min="0" step="100" oninput="calc()">
+            </div>
+            <div class="fg pm-sell-row" style="display:none"><span class="fglabel">C：材料原価 (円・任意)</span>
+              <input type="number" class="custom-matc" placeholder="0" min="0" step="100" oninput="calc()"></div>
+            <div class="fg pm-sell-row" style="display:none"><span class="fglabel">C：ガラス売価 (円)</span>
+              <input type="number" class="custom-sell" placeholder="0" min="0" step="100" oninput="calc()"></div>
+          </div>
+        </div>
+        <div class="outsource-fields" style="display:none">
+          <div class="fields-wide" style="margin-top:8px">
+            <div class="fg"><span class="fglabel">外注原価 (円)</span>
+              <input type="number" class="outsource-cost" placeholder="0" min="0" step="100" oninput="calc()"></div>
+            <div class="fg"><span class="fglabel">社内売価 (円)</span>
+              <input type="number" class="internal-price" placeholder="0" min="0" step="100" oninput="calc()"></div>
+            <div class="fg outsource-cust-price-row"><span class="fglabel">元請け提出金額 (円)</span>
+              <input type="number" class="customer-price" placeholder="0" min="0" step="100" oninput="calc()"></div>
+          </div>
+          <div class="rrow" style="margin-top:8px">
+            <label><input type="checkbox" class="apply-customer-mult" onchange="calc();updateRow(this.closest('.row-card'))"> 元請け倍率を適用（社内売価×元請け倍率）</label>
+          </div>
         </div>
         <div class="fields-wide" style="margin-top:8px">
-          <div class="fg pm-sqm-row"><span class="fglabel">A：材料単価 (円/m²)</span>
-            <input type="number" class="custom-sqm" placeholder="0" min="0" step="100" oninput="calc()"></div>
-          <div class="fg pm-mat-row" style="display:none">
-            <span class="fglabel">B：材料原価（円／1枚）</span>
-            <div class="rrow" style="margin-top:4px">
-              <label><input type="radio" name="msc${id}" value="per_unit" checked onchange="calc()"> 1枚あたり原価</label>
-              <label><input type="radio" name="msc${id}" value="total" onchange="calc()"> 明細全体原価</label>
-            </div>
-            <input type="number" class="custom-mat" placeholder="0" min="0" step="100" oninput="calc()">
-          </div>
-          <div class="fg pm-sell-row" style="display:none"><span class="fglabel">C：材料原価 (円・任意)</span>
-            <input type="number" class="custom-matc" placeholder="0" min="0" step="100" oninput="calc()"></div>
-          <div class="fg pm-sell-row" style="display:none"><span class="fglabel">C：ガラス売価 (円)</span>
-            <input type="number" class="custom-sell" placeholder="0" min="0" step="100" oninput="calc()"></div>
+          <div class="fg"><span class="fglabel">明細備考</span>
+            <input type="text" class="item-note" placeholder="備考（PDF・注文表に表示）" oninput="calc()"></div>
         </div>
       </div>
 
