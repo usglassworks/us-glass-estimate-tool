@@ -383,6 +383,9 @@ tfoot td.l{text-align:left}
     <button type="button" class="btn-preview" style="background:#5d4037" onclick="sendToManager()">現場管理に送る</button>
     <button type="button" class="btn-pdf" onclick="printPDF()">PDF出力（A4 横）</button>
     <button type="button" class="btn-reset-est" onclick="resetEstimate()">明細をリセット</button>
+    <button type="button" class="btn-preview" style="background:#00695c" onclick="copyOrderSheetJSON()">寸法表JSONコピー</button>
+    <button type="button" class="btn-preview" style="background:#00695c" onclick="downloadOrderSheetJSON()">寸法表JSON保存</button>
+    <button type="button" class="btn-preview" style="background:#1565c0" onclick="openOrderSheetTool()">寸法表ツールを開く</button>
   </div>
 
   <!-- 設定パネル -->
@@ -3177,6 +3180,104 @@ function applyJsonImport(){
   renumber();
   calc();
   closeJsonImportModal();
+}
+
+/* ══════════════════════════════════════════════
+   寸法注文表 JSON 出力
+   （同一オリジン usglassworks.github.io で localStorage 共有可）
+══════════════════════════════════════════════ */
+var ORDER_SHEET_URL    = 'https://usglassworks.github.io/usglass-order-sheet-tool/';
+var ORDER_SHEET_LS_KEY = 'usglass_order_sheet_import_payload';
+
+function buildOrderSheetPayload(){
+  var pname   = (gv('pname')            || {value:''}).value.trim();
+  var rawAddr = (gv('q-addr')           || {value:''}).value.trim();
+  var company = (gv('handoff-company')  || {value:''}).value.trim()
+             || rawAddr.replace(/\s*御中$/, '').trim();
+  var qDate   = (gv('q-date')           || {value:''}).value.trim();
+
+  var items = [];
+  document.querySelectorAll('.row-card').forEach(function(card){
+    var fixtureNo  = (card.querySelector('.fixture-no')  || {value:''}).value.trim();
+    var w          = parseFloat(String((card.querySelector('.iw') || {value:''}).value).replace(/,/g,'')) || 0;
+    var h          = parseFloat(String((card.querySelector('.ih') || {value:''}).value).replace(/,/g,'')) || 0;
+    var q          = parseInt(  String((card.querySelector('.iq') || {value:'1'}).value).replace(/,/g,'')) || 1;
+    var g          = (card.querySelector('.ig') || {value:'FL5'}).value;
+    var customName = (card.querySelector('.custom-name') || {value:''}).value.trim();
+    var addName    = (card.querySelector('.add-name')    || {value:''}).value.trim();
+
+    var glassType = (isCustom(g) && customName) ? customName : g;
+
+    items.push({
+      symbol    : fixtureNo,
+      glass_type: glassType,
+      width_mm  : w,
+      height_mm : h,
+      qty       : q,
+      process   : addName,
+      note      : ''
+    });
+  });
+
+  return {
+    app        : 'US_GLASS_ORDER_SHEET_IMPORT',
+    version    : '1.0',
+    source     : 'US_GLASS_ESTIMATE_TOOL',
+    projectName: pname,
+    companyName: company,
+    createdAt  : new Date().toISOString(),
+    items      : items
+  };
+}
+
+function _getOrderSheetJSON(){
+  if(!document.querySelectorAll('.row-card').length){
+    alert('寸法注文表に出力できる明細がありません。');
+    return null;
+  }
+  return JSON.stringify(buildOrderSheetPayload(), null, 2);
+}
+
+function copyOrderSheetJSON(){
+  var json = _getOrderSheetJSON();
+  if(!json) return;
+  function fallbackCopy(){
+    var ta = document.createElement('textarea');
+    ta.value = json;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); alert('寸法注文表用JSONをクリップボードにコピーしました。'); }
+    catch(e){ alert('コピーに失敗しました。\n\n' + json); }
+    document.body.removeChild(ta);
+  }
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(json).then(function(){
+      alert('寸法注文表用JSONをクリップボードにコピーしました。');
+    }).catch(fallbackCopy);
+  } else {
+    fallbackCopy();
+  }
+}
+
+function downloadOrderSheetJSON(){
+  var json = _getOrderSheetJSON();
+  if(!json) return;
+  var pname = (gv('pname') || {value:''}).value.trim() || '注文表';
+  var fname = pname.replace(/[\\/:*?"<>|]/g, '_') + '_order_sheet.json';
+  var blob = new Blob([json], {type:'application/json'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url; a.download = fname;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function openOrderSheetTool(){
+  var json = _getOrderSheetJSON();
+  if(!json) return;
+  try { localStorage.setItem(ORDER_SHEET_LS_KEY, json); } catch(e){}
+  window.open(ORDER_SHEET_URL, '_blank');
 }
 
 </script>
