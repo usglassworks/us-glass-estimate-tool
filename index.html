@@ -109,6 +109,17 @@ tfoot td.l{text-align:left}
 .tr-disc td{background:#fef3f3}
 .tr-outsource td{background:#f3e5f5;border-left:3px solid #7b1fa2}
 .tr-outsource-sub td{background:#ede7f6;border-top:1px solid #9c27b0}
+/* 外注・その他明細専用表 */
+.outsource-table-header{font-size:13px;font-weight:700;color:#6a1b9a;margin:16px 0 4px;padding:5px 10px;background:#f3e5f5;border-left:4px solid #7b1fa2;border-radius:2px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.outsource-tbl{margin-bottom:4px;font-size:12px;border-collapse:collapse;width:100%}
+.outsource-tbl th{background:#7b1fa2;color:#fff;padding:5px 7px;text-align:center;white-space:nowrap;font-size:11px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.outsource-tbl td{padding:5px 7px;text-align:right;white-space:nowrap;border:1px solid #e0c8f0;font-size:12px}
+.outsource-tbl td.l{text-align:left}
+.outsource-tbl td.c{text-align:center}
+/* グランドトータルサマリー */
+.grand-summary-tbl{margin:8px 0 16px auto;width:340px;font-size:13px;border-collapse:collapse}
+.grand-summary-tbl td{padding:5px 10px;text-align:right;white-space:nowrap;border:1px solid #ddd}
+.grand-summary-tbl td.l{text-align:left}
 .tr-grand td{background:#0d2b50;color:#fff;font-size:13px;border-top:2px solid #1a5f8c;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .tr-net td{background:#e8f5e9}
 .tr-quote td{background:#e3f2fd}
@@ -256,6 +267,11 @@ tfoot td.l{text-align:left}
   .tr-disc td{background:#fef3f3!important}
   .tr-outsource td{background:#f3e5f5!important;border-left:2px solid #7b1fa2!important}
   .tr-outsource-sub td{background:#ede7f6!important}
+  .outsource-table-header{background:#f3e5f5!important;color:#6a1b9a!important;font-size:10px!important;padding:3px 6px!important;margin:8px 0 2px!important}
+  .outsource-tbl th{background:#7b1fa2!important;color:#fff!important;font-size:8px!important;padding:2px 4px!important}
+  .outsource-tbl td{font-size:8.5px!important;padding:2px 4px!important}
+  .grand-summary-tbl{width:260px!important;font-size:9px!important}
+  .grand-summary-tbl td{padding:2px 6px!important}
   .tr-grand td{background:#0d2b50!important;color:#fff!important;font-size:9px!important}
   .tr-net td{background:#e8f5e9!important}
   .tr-quote td{background:#e3f2fd!important}
@@ -1160,8 +1176,17 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
   var rows = datas.length;
   var h = '';
 
+  /* ガラス行と外注行のインデックスを分ける */
+  var glassIdx = [], outIdx = [];
+  for(var i = 0; i < rows; i++){
+    if(calcs[i].isOutsource) outIdx.push(i);
+    else glassIdx.push(i);
+  }
+  var glassOnlySub = totals.iSub - totals.iSumOUTSELL;
+  var glassOnlyMat = totals.iSumMAT - totals.iSumOUTCOST;
+
   if(isInt){
-    /* 社内用 21列 */
+    /* ─── 社内用：ガラス明細表（22列） ─── */
     h += '<table><thead><tr>';
     h += '<th>No.</th><th>建具番号</th><th>寸法(mm)</th><th>品名</th><th>枚数</th><th>面積(m²)</th>';
     h += '<th>材料単価</th><th>材料原価</th><th>倍率</th><th>ガラス売価</th>';
@@ -1169,29 +1194,14 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     h += '<th>コーキングm数</th><th>コーキング単価</th><th>コーキング費</th><th>剥単価</th><th>剥費</th>';
     h += '<th>廃棄代</th><th>追加費用</th><th>行合計</th><th>粗利</th>';
     h += '</tr></thead><tbody>';
-
-    for(var i = 0; i < rows; i++){
+    if(glassIdx.length === 0){
+      h += '<tr><td colspan="22" style="text-align:center;color:#999;padding:12px">ガラス明細なし</td></tr>';
+    }
+    for(var ii = 0; ii < glassIdx.length; ii++){
+      var i = glassIdx[ii];
       var d = datas[i], c = calcs[i];
       var dim = (d.w && d.h) ? d.w + ' × ' + d.h : '—';
       var pname = (d.customName && isCustom(d.g)) ? d.customName : d.g;
-      if(c.isOutsource){
-        var catLabel = c.itemCategory || '外注';
-        var noteStr = d.itemNote ? ('　備考：' + escH(d.itemNote)) : '';
-        h += '<tr class="tr-outsource">';
-        h += '<td class="c" data-label="No.">' + (i+1) + '</td>';
-        h += '<td class="l" data-label="建具番号">' + (d.fixtureNo ? escH(d.fixtureNo) : '—') + '</td>';
-        h += '<td class="l" data-label="寸法">—</td>';
-        h += '<td class="l" data-label="品名"><strong>[' + escH(catLabel) + ']</strong> ' + escH(pname) + noteStr + '</td>';
-        h += '<td class="c" data-label="枚数">—</td>';
-        h += '<td colspan="15" style="text-align:left;font-size:12px;color:#444" data-label="外注">' +
-             '外注原価&ensp;<strong>' + fmt(c.outsourceCostAmt) + '</strong>' +
-             '&emsp;→&emsp;社内売価&ensp;<strong>' + fmt(c.internalSellAmt) + '</strong>' +
-             '</td>';
-        h += '<td class="td-total" data-label="行合計"><strong>' + fmt(c.internalSellAmt) + '</strong></td>';
-        h += '<td data-label="粗利">' + fmt(c.profitRow) + '</td>';
-        h += '</tr>';
-        continue;
-      }
       var ckr_disp = d.caulkRate > 0 ? d.caulkRate : (d.fire ? OTHER.ckFire : OTHER.ckNormal);
       var up = isCustom(d.g) ? (d.priceMode === 'sqm' ? d.customSqm : '—') : (GP[d.g] || 0);
       var rowT = c.glassPrice + c.constructionBase + c.removalCost
@@ -1225,28 +1235,66 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     h += '</tbody><tfoot>';
     h += '<tr class="tr-sub">';
     h += '<td colspan="5" class="l">小計（ガラス系）</td><td>—</td><td>—</td>';
-    h += '<td>' + fmt(totals.iSumMAT) + '</td><td>—</td>';
+    h += '<td>' + fmt(glassOnlyMat) + '</td><td>—</td>';
     h += '<td>' + fmt(totals.iSumGP) + '</td><td>—</td>';
     h += '<td>' + fmt(totals.iSumCC) + '</td><td>' + fmt(totals.iSumRC) + '</td>';
     h += '<td>—</td><td>—</td><td>' + fmt(totals.iSumCK) + '</td>';
     h += '<td>—</td><td>' + fmt(totals.iSumCKR) + '</td>';
     h += '<td>' + fmt(totals.iSumDC) + '</td><td>' + fmt(totals.iSumADD) + '</td>';
-    h += '<td><strong>' + fmt(totals.iSub - totals.iSumOUTSELL) + '</strong></td><td>—</td></tr>';
-    if(totals.iSumOUTSELL > 0 || totals.iSumOUTCOST > 0){
-      h += '<tr class="tr-outsource-sub"><td colspan="5" class="l">外注系合計</td>';
-      h += '<td colspan="2">外注原価合計</td><td>' + fmt(totals.iSumOUTCOST) + '</td>';
-      h += '<td colspan="2">外注売価合計</td>';
-      h += '<td colspan="11" class="td-total"><strong>' + fmt(totals.iSumOUTSELL) + '</strong></td><td>—</td></tr>';
-    }
-    h += '<tr class="tr-misc"><td colspan="21" class="l">' + makeMiscLabel(totals) + '</td>';
-    h += '<td><strong>' + fmt(totals.misc) + '</strong></td></tr>';
-    if(s.discAmt > 0){
-      h += '<tr class="tr-disc"><td colspan="21" class="l">値引き' + (s.discName ? ' （' + escH(s.discName) + '）' : '') + '</td>';
-      h += '<td><strong>▲ ' + fmt(s.discAmt) + '</strong></td></tr>';
-    }
-    h += '<tr class="tr-grand"><td colspan="21" class="l">社内計算合計</td>';
-    h += '<td><strong>' + fmt(totals.iGrand) + '</strong></td></tr>';
+    h += '<td><strong>' + fmt(glassOnlySub) + '</strong></td><td>—</td></tr>';
     h += '</tfoot></table>';
+
+    /* ─── 外注・その他明細表（8列） ─── */
+    if(outIdx.length > 0){
+      var outProfit = totals.iSumOUTSELL - totals.iSumOUTCOST;
+      h += '<div class="outsource-table-header">外注・その他明細</div>';
+      h += '<table class="outsource-tbl"><thead><tr>';
+      h += '<th>No.</th><th>区分</th><th>建具番号</th><th>内容</th>';
+      h += '<th>外注原価</th><th>社内売価</th><th>元請け提出金額</th><th>粗利</th>';
+      h += '</tr></thead><tbody>';
+      for(var ii = 0; ii < outIdx.length; ii++){
+        var i = outIdx[ii];
+        var d = datas[i], c = calcs[i], cd = cDisp[i];
+        var pname = d.customName || '';
+        var catLabel = c.itemCategory || '外注';
+        var custSell = cd.outsourceCustomerSell || 0;
+        var noteStr = d.itemNote ? ('<br><span style="font-size:10px;color:#666">' + escH(d.itemNote) + '</span>') : '';
+        h += '<tr>';
+        h += '<td class="c">' + (i+1) + '</td>';
+        h += '<td class="c">' + escH(catLabel) + '</td>';
+        h += '<td class="l">' + (d.fixtureNo ? escH(d.fixtureNo) : '—') + '</td>';
+        h += '<td class="l">' + escH(pname) + noteStr + '</td>';
+        h += '<td>' + fmt(c.outsourceCostAmt) + '</td>';
+        h += '<td>' + fmt(c.internalSellAmt) + '</td>';
+        h += '<td>' + fmt(custSell) + '</td>';
+        h += '<td>' + fmt(c.profitRow) + '</td>';
+        h += '</tr>';
+      }
+      h += '</tbody><tfoot>';
+      h += '<tr class="tr-sub"><td colspan="4" class="l">外注合計</td>';
+      h += '<td>' + fmt(totals.iSumOUTCOST) + '</td>';
+      h += '<td>' + fmt(totals.iSumOUTSELL) + '</td>';
+      h += '<td>' + fmt(totals.cSumOUTSELL) + '</td>';
+      h += '<td>' + fmt(outProfit) + '</td></tr>';
+      h += '</tfoot></table>';
+    }
+
+    /* ─── グランドトータルサマリー ─── */
+    h += '<table class="grand-summary-tbl">';
+    h += '<tr class="tr-sub"><td class="l">小計（ガラス系）</td><td>' + fmt(glassOnlySub) + '</td></tr>';
+    if(totals.iSumOUTSELL > 0){
+      var outProfit3 = totals.iSumOUTSELL - totals.iSumOUTCOST;
+      h += '<tr class="tr-outsource-sub"><td class="l">外注原価合計</td><td>' + fmt(totals.iSumOUTCOST) + '</td></tr>';
+      h += '<tr class="tr-outsource-sub"><td class="l">外注売価合計</td><td>' + fmt(totals.iSumOUTSELL) + '</td></tr>';
+      h += '<tr class="tr-outsource-sub"><td class="l">外注粗利</td><td>' + fmt(outProfit3) + '</td></tr>';
+    }
+    h += '<tr class="tr-misc"><td class="l">' + makeMiscLabel(totals) + '</td><td>' + fmt(totals.misc) + '</td></tr>';
+    if(s.discAmt > 0){
+      h += '<tr class="tr-disc"><td class="l">値引き' + (s.discName ? ' （' + escH(s.discName) + '）' : '') + '</td>';
+      h += '<td>▲ ' + fmt(s.discAmt) + '</td></tr>';
+    }
+    h += '<tr class="tr-grand"><td class="l">社内計算合計</td><td><strong>' + fmt(totals.iGrand) + '</strong></td></tr>';
+    h += '</table>';
 
     /* モバイル合計 */
     h += '<div class="mobile-totals">';
@@ -1258,9 +1306,10 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     h += '</div>';
 
   } else {
-    /* 元請け用 13列: No / 建具番号 / 品名 / 寸法 / 枚数 / 総面積 / ガラス金額 / 施工工賃 / CKm数 / CK費 / 剥がし代 / 廃棄代 / 小計 */
+    /* ─── 元請け用：ガラス明細表（13列） ─── */
     var totalCArea = 0, totalCKm = 0;
-    for(var i = 0; i < rows; i++){
+    for(var ii = 0; ii < glassIdx.length; ii++){
+      var i = glassIdx[ii];
       totalCArea += calcs[i].area * datas[i].q;
       totalCKm   += calcs[i].caulkMeters;
     }
@@ -1270,25 +1319,14 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     h += '<th>総面積</th><th>ガラス</th><th>施工</th>';
     h += '<th>コーキングm</th><th>コーキング</th><th>剥がし</th><th>廃棄</th><th>小計</th>';
     h += '</tr></thead><tbody>';
-
-    for(var i = 0; i < rows; i++){
+    if(glassIdx.length === 0){
+      h += '<tr><td colspan="13" style="text-align:center;color:#999;padding:12px">ガラス明細なし</td></tr>';
+    }
+    for(var ii = 0; ii < glassIdx.length; ii++){
+      var i = glassIdx[ii];
       var d = datas[i], c = calcs[i], cd = cDisp[i];
       var dim = (d.w && d.h) ? d.w + ' × ' + d.h : '—';
       var pname = (d.customName && isCustom(d.g)) ? d.customName : d.g;
-      if(cd.isOutsource){
-        var catLabel = cd.itemCategory || '外注';
-        var noteStr = d.itemNote ? ('　' + escH(d.itemNote)) : '';
-        h += '<tr>';
-        h += '<td class="c" data-label="No.">' + (i+1) + '</td>';
-        h += '<td class="l" data-label="建具番号">' + (d.fixtureNo ? escH(d.fixtureNo) : '—') + '</td>';
-        h += '<td class="l" data-label="品名"><strong>[' + escH(catLabel) + ']</strong> ' + escH(pname) + noteStr + '</td>';
-        h += '<td class="l" data-label="寸法">—</td>';
-        h += '<td class="c" data-label="枚数">—</td>';
-        h += '<td colspan="7" style="text-align:center;color:#777;font-size:12px" data-label="">—</td>';
-        h += '<td class="td-total" data-label="小計"><strong>' + fmt(cd.outsourceCustomerSell) + '</strong></td>';
-        h += '</tr>';
-        continue;
-      }
       var rowT = cd.glassPrice + cd.constructionBase + cd.removalCost
                + cd.caulkingCost + cd.caulkingRemoval + cd.disposalCost + cd.addAmt;
       h += '<tr>';
@@ -1308,7 +1346,7 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
       h += '</tr>';
     }
     h += '</tbody><tfoot>';
-    h += '<tr class="tr-sub"><td colspan="5" class="l">小計</td>';
+    h += '<tr class="tr-sub"><td colspan="5" class="l">小計（ガラス系）</td>';
     h += '<td>' + fmtA(totalCArea) + '</td>';
     h += '<td>' + fmt(totals.cSumGP) + '</td>';
     h += '<td>' + fmt(totals.cSumCC + totals.cSumRC) + '</td>';
@@ -1316,16 +1354,49 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     h += '<td>' + fmt(totals.cSumCK) + '</td>';
     h += '<td>' + fmt(totals.cSumCKR) + '</td>';
     h += '<td>' + fmt(totals.cSumDC) + '</td>';
-    h += '<td><strong>' + fmt(totals.cSub) + '</strong></td></tr>';
-    h += '<tr class="tr-misc"><td colspan="12" class="l">' + makeMiscLabel(totals) + '</td>';
-    h += '<td><strong>' + fmt(totals.misc) + '</strong></td></tr>';
-    if(s.discAmt > 0){
-      h += '<tr class="tr-disc"><td colspan="12" class="l">値引き' + (s.discName ? ' （' + escH(s.discName) + '）' : '') + '</td>';
-      h += '<td><strong>▲ ' + fmt(s.discAmt) + '</strong></td></tr>';
-    }
-    h += '<tr class="tr-grand"><td colspan="12" class="l"><strong>見積金額合計</strong></td>';
-    h += '<td><strong>' + fmt(quoteAmt) + '</strong></td></tr>';
+    h += '<td><strong>' + fmt(totals.cSub - totals.cSumOUTSELL) + '</strong></td></tr>';
     h += '</tfoot></table>';
+
+    /* ─── 元請け用：その他工事表（5列） ─── */
+    if(outIdx.length > 0){
+      h += '<div class="outsource-table-header">その他工事・外注工事</div>';
+      h += '<table class="outsource-tbl outsource-cust-tbl"><thead><tr>';
+      h += '<th>No.</th><th>区分</th><th>建具番号</th><th>内容</th><th>金額</th>';
+      h += '</tr></thead><tbody>';
+      for(var ii = 0; ii < outIdx.length; ii++){
+        var i = outIdx[ii];
+        var d = datas[i], cd = cDisp[i];
+        var pname = d.customName || '';
+        var catLabel = cd.itemCategory || '外注';
+        var noteStr = d.itemNote ? ('<br><span style="font-size:10px;color:#666">' + escH(d.itemNote) + '</span>') : '';
+        h += '<tr>';
+        h += '<td class="c">' + (i+1) + '</td>';
+        h += '<td class="c">' + escH(catLabel) + '</td>';
+        h += '<td class="l">' + (d.fixtureNo ? escH(d.fixtureNo) : '—') + '</td>';
+        h += '<td class="l">' + escH(pname) + noteStr + '</td>';
+        h += '<td class="td-total"><strong>' + fmt(cd.outsourceCustomerSell) + '</strong></td>';
+        h += '</tr>';
+      }
+      h += '</tbody><tfoot>';
+      h += '<tr class="tr-sub"><td colspan="4" class="l">その他工事合計</td>';
+      h += '<td>' + fmt(totals.cSumOUTSELL) + '</td></tr>';
+      h += '</tfoot></table>';
+    }
+
+    /* ─── 元請け：グランドトータルサマリー ─── */
+    var cGlassSub = totals.cSub - totals.cSumOUTSELL;
+    h += '<table class="grand-summary-tbl">';
+    h += '<tr class="tr-sub"><td class="l">小計（ガラス系）</td><td>' + fmt(cGlassSub) + '</td></tr>';
+    if(totals.cSumOUTSELL > 0){
+      h += '<tr class="tr-outsource-sub"><td class="l">その他工事合計</td><td>' + fmt(totals.cSumOUTSELL) + '</td></tr>';
+    }
+    h += '<tr class="tr-misc"><td class="l">' + makeMiscLabel(totals) + '</td><td>' + fmt(totals.misc) + '</td></tr>';
+    if(s.discAmt > 0){
+      h += '<tr class="tr-disc"><td class="l">値引き' + (s.discName ? ' （' + escH(s.discName) + '）' : '') + '</td>';
+      h += '<td>▲ ' + fmt(s.discAmt) + '</td></tr>';
+    }
+    h += '<tr class="tr-grand"><td class="l"><strong>見積金額合計</strong></td><td><strong>' + fmt(quoteAmt) + '</strong></td></tr>';
+    h += '</table>';
 
     /* 表下シンプル合計表示 */
     h += '<div class="customer-total-plain">';
