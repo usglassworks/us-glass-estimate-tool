@@ -1297,6 +1297,21 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     h += '<tr class="tr-grand"><td class="l">社内計算合計</td><td><strong>' + fmt(totals.iGrand) + '</strong></td></tr>';
     h += '</table>';
 
+    /* 社内用NET明細サマリー（PDF内に必ず表示するため tbl-body 内に配置） */
+    var iNtProfit = netAmt - totals.totalMatCost;
+    var iNtProfitRate = netAmt > 0 ? (iNtProfit / netAmt * 100) : 0;
+    h += '<table class="grand-summary-tbl" style="margin-top:8px;padding-top:6px;border-top:2px solid #0d2b50">';
+    h += '<tr style="background:#e8f5e9"><td class="l"><strong>実NET（税込）</strong></td><td style="font-weight:700">¥ ' + fmt(q.netInclAmt) + '</td></tr>';
+    h += '<tr><td class="l">実NET（税抜）</td><td>¥ ' + fmt(netAmt) + '</td></tr>';
+    h += '<tr style="color:#555;font-size:11px"><td class="l">原価合計</td><td>¥ ' + fmt(totals.totalMatCost) + '</td></tr>';
+    h += '<tr style="background:#e8f5e9"><td class="l"><strong>実NET粗利</strong></td><td style="font-weight:700">¥ ' + fmt(iNtProfit) + '</td></tr>';
+    h += '<tr><td class="l">実NET粗利率</td><td>' + iNtProfitRate.toFixed(1) + '%</td></tr>';
+    if(q.netMode === 'manual'){
+      var iNtDiff = totals.iGrand - q.netInclAmt;
+      h += '<tr style="font-size:11px"><td class="l">差額（社内計算 − NET）</td><td>¥ ' + fmt(iNtDiff) + '</td></tr>';
+    }
+    h += '</table>';
+
     /* モバイル合計 */
     h += '<div class="mobile-totals">';
     h += '<div class="mt-row" style="background:#ecf3fb;border-top:2px solid #1a5f8c"><span>小計</span><span>' + fmt(totals.iSub) + '</span></div>';
