@@ -1211,7 +1211,8 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
       h += '<td class="c" data-label="No.">' + (i+1) + '</td>';
       h += '<td class="l" data-label="建具番号">' + (d.fixtureNo ? escH(d.fixtureNo) : '—') + '</td>';
       h += '<td class="l" data-label="寸法">' + dim + '</td>';
-      h += '<td class="l" data-label="品名">' + escH(pname) + '</td>';
+      var iNoteStr = d.itemNote ? ('<br><span style="font-size:9px;color:#666">' + escH(d.itemNote) + '</span>') : '';
+      h += '<td class="l" data-label="品名">' + escH(pname) + iNoteStr + '</td>';
       h += '<td class="c" data-label="枚数">' + (d.q || '—') + '</td>';
       h += '<td class="td-detail" data-label="面積">' + fmtA(c.area * d.q) + '</td>';
       h += '<td class="td-detail" data-label="材料単価">' + (typeof up === 'number' ? fmt(up) : up) + '</td>';
@@ -1332,7 +1333,8 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
       h += '<tr>';
       h += '<td class="c" data-label="No.">' + (i+1) + '</td>';
       h += '<td class="l" data-label="建具番号">' + (d.fixtureNo ? escH(d.fixtureNo) : '—') + '</td>';
-      h += '<td class="l" data-label="品名">' + escH(pname) + '</td>';
+      var cNoteStr = d.itemNote ? ('<br><span style="font-size:9px;color:#666">' + escH(d.itemNote) + '</span>') : '';
+      h += '<td class="l" data-label="品名">' + escH(pname) + cNoteStr + '</td>';
       h += '<td class="l" data-label="寸法">' + dim + '</td>';
       h += '<td class="c" data-label="枚数">' + (d.q || '—') + '</td>';
       h += '<td class="td-detail" data-label="総面積">' + fmtA(c.area * d.q) + '</td>';
@@ -2451,6 +2453,10 @@ function addRow(){
           <div class="fg"><span class="fglabel">ガラス種類</span>
             <select class="ig" onchange="calc();updateRow(this.closest('.row-card'))">${GOPTS}</select></div>
         </div>
+        <div style="margin-top:6px">
+          <div class="fglabel" style="font-size:11px;color:#555;margin-bottom:3px">備考（加工・注意事項など）</div>
+          <textarea class="item-note" rows="2" placeholder="例：4方糸面取り加工、小口磨き、穴あけあり" oninput="calc()" style="font-size:16px;width:100%;padding:6px 8px;border:1px solid #c8ddef;border-radius:4px;resize:vertical;min-height:42px;font-family:inherit;box-sizing:border-box;line-height:1.4"></textarea>
+        </div>
       </div>
 
       <div class="custom-fields" style="display:none">
@@ -2507,10 +2513,6 @@ function addRow(){
           <div class="rrow" style="margin-top:8px">
             <label><input type="checkbox" class="apply-customer-mult" onchange="calc();updateRow(this.closest('.row-card'))"> 元請け倍率を適用（社内売価×元請け倍率）</label>
           </div>
-        </div>
-        <div class="fields-wide" style="margin-top:8px">
-          <div class="fg"><span class="fglabel">明細備考</span>
-            <input type="text" class="item-note" placeholder="備考（PDF・注文表に表示）" oninput="calc()"></div>
         </div>
       </div>
 
@@ -3551,7 +3553,12 @@ function buildOrderSheetPayload(){
     var glassType = (isCustom(g) && customName) ? customName : g;
     var dimSrc    = hasOrder ? 'actual' : 'estimate';
     var dimWarn   = hasOrder ? '' : '発注寸法未入力のため、積算寸法を使用。発注前に要確認。';
-    var note      = hasOrder ? (orderMemo || '') : ('要確認' + (orderMemo ? ' ' + orderMemo : ''));
+    var itemNote  = (card.querySelector('.item-note') || {value:''}).value.trim();
+    var noteParts = [];
+    if(!hasOrder) noteParts.push('要確認');
+    if(itemNote)  noteParts.push(itemNote);
+    if(orderMemo) noteParts.push(orderMemo);
+    var note      = noteParts.join(' ');
 
     items.push({
       symbol             : fixtureNo,
