@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>US GLASS 積算 - Drive保存テスト</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#eef1f5}
+#app{border:0;width:100%;height:100%;display:block}
+#status{position:fixed;right:8px;bottom:8px;z-index:999999;background:#283593;color:#fff;padding:7px 10px;border-radius:7px;font:12px sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+</style>
+</head>
+<body>
+<iframe id="app" src="./index.html" title="US GLASS 積算ツール"></iframe>
+<div id="status">Drive直接保存版を読み込み中...</div>
+<script>
+(function(){
+  var frame = document.getElementById('app');
+  var status = document.getElementById('status');
+  frame.addEventListener('load', function(){
+    try {
+      var doc = frame.contentDocument;
+      var s = doc.createElement('script');
+      s.src = './drive-direct-storage.js?v=1';
+      s.onload = function(){
+        status.textContent = '☁ Drive直接保存版';
+        setTimeout(function(){ status.style.display = 'none'; }, 3500);
+      };
+      s.onerror = function(){ status.textContent = 'Drive保存モジュール読込失敗'; };
+      doc.body.appendChild(s);
+    } catch(e){
+      status.textContent = '初期化失敗: ' + e.message;
+    }
+  });
+})();
+</script>
+</body>
+</html>
