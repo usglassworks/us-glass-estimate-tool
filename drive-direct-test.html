@@ -6,13 +6,15 @@
 <title>US GLASS 積算 - Drive保存テスト</title>
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#eef1f5}
-#app{border:0;width:100%;height:100%;display:block}
-#status{position:fixed;right:8px;bottom:8px;z-index:999999;background:#283593;color:#fff;padding:7px 10px;border-radius:7px;font:12px sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#banner{height:42px;box-sizing:border-box;background:#283593;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 12px;font:700 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.02em}
+#app{border:0;width:100%;height:calc(100% - 42px);display:block}
+#status{position:fixed;right:8px;bottom:8px;z-index:999999;background:#111827;color:#fff;padding:7px 10px;border-radius:7px;font:12px sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 </style>
 </head>
 <body>
+<div id="banner">☁ Google Drive直接保存・テスト版</div>
 <iframe id="app" src="./index.html" title="US GLASS 積算ツール"></iframe>
-<div id="status">Drive直接保存版を読み込み中...</div>
+<div id="status">Drive保存機能を読み込み中...</div>
 <script>
 (function(){
   var frame = document.getElementById('app');
@@ -21,15 +23,22 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#eef1f5}
     try {
       var doc = frame.contentDocument;
       var s = doc.createElement('script');
-      s.src = './drive-direct-storage.js?v=1';
+      s.src = './drive-direct-storage.js?v=2';
       s.onload = function(){
-        status.textContent = '☁ Drive直接保存版';
-        setTimeout(function(){ status.style.display = 'none'; }, 3500);
+        status.textContent = '✓ Drive直接保存機能 読込完了';
+        var saveBtn = doc.getElementById('saveProjectBtn');
+        var saveNewBtn = doc.getElementById('saveAsNewBtn');
+        if(saveBtn) saveBtn.textContent = '☁ Driveへ案件保存';
+        if(saveNewBtn) saveNewBtn.textContent = '☁ Driveへ別案件保存';
       };
-      s.onerror = function(){ status.textContent = 'Drive保存モジュール読込失敗'; };
+      s.onerror = function(){
+        status.textContent = '× Drive保存モジュール読込失敗';
+        status.style.background = '#b91c1c';
+      };
       doc.body.appendChild(s);
     } catch(e){
-      status.textContent = '初期化失敗: ' + e.message;
+      status.textContent = '× 初期化失敗: ' + e.message;
+      status.style.background = '#b91c1c';
     }
   });
 })();
