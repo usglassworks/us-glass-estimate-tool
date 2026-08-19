@@ -1,0 +1,46 @@
+name: Enable Drive Direct Storage
+
+on:
+  push:
+    paths:
+      - '.github/workflows/enable-drive-direct.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/glass-quotation-tool-D7yH4
+
+      - name: Inject Drive-direct storage module
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+          marker = '<script src="./drive-direct-storage.js?v=production-1"></script>'
+          if marker in text:
+              print('Drive-direct module already enabled')
+          else:
+              head, sep, tail = text.rpartition('</body>')
+              if not sep:
+                  raise SystemExit('Could not find closing body tag')
+              p.write_text(head + marker + '\n</body>' + tail, encoding='utf-8')
+              print('Drive-direct module injected')
+          PY
+
+      - name: Commit production integration
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index change required'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Enable Google Drive direct project storage in main app'
+          git push origin HEAD:claude/glass-quotation-tool-D7yH4
