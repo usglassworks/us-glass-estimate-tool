@@ -51,7 +51,7 @@
     else state.fileId = await _driveUploadNew(DRIVE_FILE_NAME, state.dataId, content);
     try {
       localStorage.setItem('usglass_last_drive_sync', state.db.lastSyncedAt);
-      updateDriveSyncLabel();
+      if(typeof updateDriveSyncLabel === 'function') updateDriveSyncLabel();
     } catch(e){}
   }
 
@@ -68,6 +68,39 @@
       }
     };
   }
+
+  function setDriveLabels(){
+    var saveBtn = gv('saveProjectBtn');
+    var newBtn = gv('saveAsNewBtn');
+    if(saveBtn) saveBtn.textContent = currentProjectId ? '☁ Driveへ上書き保存' : '☁ Driveへ案件保存';
+    if(newBtn) newBtn.textContent = '☁ 別案件としてDrive保存';
+
+    document.querySelectorAll('[onclick*="syncToGoogleDrive"],[onclick*="syncFromGoogleDrive"]').forEach(function(btn){
+      btn.disabled = true;
+      btn.style.opacity = '.55';
+      btn.style.cursor = 'default';
+      btn.title = '案件データは保存ボタンからGoogle Driveへ直接保存されます';
+      if(/syncToGoogleDrive/.test(btn.getAttribute('onclick') || '')) btn.textContent = '☁ 案件は自動Drive保存';
+      else btn.textContent = '☁ 案件はDriveから直接読込';
+    });
+
+    var bar = document.querySelector('.drive-sync-bar');
+    if(bar && !document.getElementById('drive-direct-note')){
+      var note = document.createElement('div');
+      note.id = 'drive-direct-note';
+      note.style.cssText = 'font-size:12px;font-weight:700;color:#1a5f8c;margin-top:6px';
+      note.textContent = '☁ 案件保存先：Google Drive';
+      bar.appendChild(note);
+    }
+  }
+
+  var originalUpdateSaveButtonLabel = window.updateSaveButtonLabel;
+  window.updateSaveButtonLabel = function(){
+    try {
+      if(typeof originalUpdateSaveButtonLabel === 'function') originalUpdateSaveButtonLabel();
+    } catch(e){}
+    setDriveLabels();
+  };
 
   async function saveToDrive(forceNew){
     if(isSaving) return;
@@ -102,7 +135,7 @@
     } finally {
       isSaving = false;
       if(btn) btn.disabled = false;
-      updateSaveButtonLabel();
+      setDriveLabels();
     }
   }
 
@@ -147,7 +180,7 @@
       currentProjectId = id;
       applyProjectData(project.data);
       hideSavedProjects();
-      updateSaveButtonLabel();
+      setDriveLabels();
       alert('Google Driveから案件を呼び出しました：' + (project.name || '無題案件'));
     } catch(e){
       alert('Google Driveから案件を呼び出せませんでした：\n' + (e.message || e));
@@ -161,12 +194,23 @@
       state.db.projects = state.db.projects.filter(function(p){ return p.id !== id; });
       if(currentProjectId === id) currentProjectId = null;
       await writeDb(state);
-      updateSaveButtonLabel();
+      setDriveLabels();
       await window.showSavedProjects();
     } catch(e){
       alert('Google Drive上の案件を削除できませんでした：\n' + (e.message || e));
     }
   };
+
+  window.syncToGoogleDrive = function(){
+    alert('案件データは「Driveへ案件保存」からGoogle Driveへ直接保存されます。\n旧「Driveへ同期保存」は使用しません。');
+  };
+  window.syncFromGoogleDrive = function(){
+    alert('案件データは「保存案件を呼び出す」からGoogle Driveを直接読み込みます。\n旧「Driveから復元」は使用しません。');
+  };
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setDriveLabels);
+  else setDriveLabels();
+  setTimeout(setDriveLabels, 500);
 
   console.info('US GLASS: Drive direct project storage loaded');
 })();
