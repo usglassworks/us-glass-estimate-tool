@@ -1,0 +1,31 @@
+{
+  "description": "Synthetic regression examples, not actual saved customer estimates. Baseline: 4fc91fe4075a00e2f44e8d54b3c13580fdeb7e19. Master values are explicit test inputs, not claims about a user's localStorage.",
+  "master": {
+    "GP": { "FL5": 1710, "FL6": 2130, "FL8": 3500, "FL10": 4800, "FL12": 8800, "Yカガミ5": 4940, "3+3乳半": 10600 },
+    "CR": { "FL5": 1000, "FL6": 1100, "FL8": 1300, "FL10": 2100, "FL12": 3100, "3+3乳半": 1200 },
+    "OTHER": { "ckNormal": 350, "ckFire": 750, "ckRemoval": 300, "disposal": 1000, "mirrorLabor": 5000, "doorPulley": 2000 }
+  },
+  "cases": [
+    { "name": "FL5 1m2 normal double side", "rows": [{}] },
+    { "name": "FL6 single side removal disposal", "rows": [{ "g": "FL6", "w": 900, "h": 1800, "q": 2, "caulkSide": "single", "rem": true, "disposal": true }] },
+    { "name": "fire caulking and seal removal", "rows": [{ "g": "FL8", "w": 1250, "h": 2100, "q": 3, "fire": true, "ckRemoval": true }] },
+    { "name": "bead suppresses caulking and seal removal", "rows": [{ "g": "FL10", "fix": "bead", "fire": true, "ckRemoval": true, "effCkUnitPrice": 900 }] },
+    { "name": "fractional area laminated", "rows": [{ "g": "3+3乳半", "w": 307, "h": 837, "q": 3, "rem": true, "caulkSide": "single" }, { "g": "3+3乳半", "w": 1643, "h": 305, "caulkSide": "single" }] },
+    { "name": "mirror quantity existing behavior", "rows": [{ "g": "Yカガミ5", "w": 900, "h": 1800, "q": 2, "rem": true }] },
+    { "name": "custom sqm", "rows": [{ "g": "LOW-E複層", "customSqm": 64800, "constRate": 2300 }] },
+    { "name": "custom material per unit", "rows": [{ "g": "特注品", "priceMode": "mat", "customMat": 5000, "matScope": "per_unit", "q": 3 }] },
+    { "name": "custom material total", "rows": [{ "g": "自由入力", "priceMode": "mat", "customMat": 5000, "matScope": "total", "q": 3 }] },
+    { "name": "direct sale", "rows": [{ "g": "自由入力", "priceMode": "sell", "customMatC": 5000, "customSell": 9000 }] },
+    { "name": "caulking bottles rounded per row", "settings": { "ckUnitPrice": 800, "ckCoverage": 3 }, "rows": [{}, {}] },
+    { "name": "row price overrides", "rows": [{ "constRate": 2600, "caulkRate": 420, "removalRate": 180, "ckRemoval": true, "sellMult": 1.8, "ckUnitPrice": 900, "ckCoverage": 5 }] },
+    { "name": "additional cost zero profit in internal subtotal", "rows": [{ "addAmt": 6000, "addInCost": true, "addInSales": true, "addInCust": true }] },
+    { "name": "outsource direct and adjusted", "rows": [{ "g": "自由入力", "itemCategory": "外注工事", "outsourceCost": 5000, "internalPrice": 8000, "customerPrice": 12000 }, { "g": "自由入力", "itemCategory": "部材", "outsourceCost": 1000, "internalPrice": 2000, "applyCustomerMult": true }] },
+    { "name": "misc boundary three", "rows": [{ "q": 3 }] },
+    { "name": "misc boundary four", "rows": [{ "q": 4 }] },
+    { "name": "manual misc and discount", "settings": { "miscManual": 1234, "discAmt": 234 }, "rows": [{}] },
+    { "name": "manual zero misc", "settings": { "miscMode": "manual", "miscManual": 0 }, "rows": [{}] },
+    { "name": "manual net inclusive and quotation multiplier", "quote": { "netMode": "manual", "netManual": 22000, "netTax": "incl", "qaMode": "net_mult", "netMult": 1.3 }, "rows": [{}] },
+    { "name": "manual quote inclusive rounding", "quote": { "qaMode": "manual", "qaManual": 12345, "qaTax": "incl" }, "rows": [{}] },
+    { "name": "empty dimensions current misc behavior", "rows": [{ "w": 0, "h": 0 }] }
+  ]
+}

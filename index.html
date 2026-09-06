@@ -398,6 +398,8 @@ tfoot td.l{text-align:left}
     </div>
   </div>
 
+  <div id="pricing-status" class="master-warning no-print" role="status">価格設定を読み込み中です。</div>
+
   <!-- クイック操作 -->
   <div class="quick-action-bar no-print" id="quick-action-bar">
     <button type="button" class="btn-preview" onclick="previewPDF()">PDF確認プレビュー</button>
@@ -557,7 +559,7 @@ tfoot td.l{text-align:left}
     </button>
     <div class="master-panel-inner" id="master-panel-inner" style="display:none">
 
-      <div class="master-sec-label">材料単価 GP（円/m² × 1.10 × 面積）</div>
+      <div class="master-sec-label" id="material-rule-label">材料単価 GP（円/m²）</div>
       <div class="master-grid" id="mp-gp-grid"></div>
 
       <div class="master-sec-label">施工単価 CR（円/m²）</div>
@@ -691,6 +693,9 @@ tfoot td.l{text-align:left}
   </div>
 </div>
 
+<script src="./pricing/approved-master.js?v=2026-09-06-1"></script>
+<script src="./pricing/price-context.js?v=2026-09-06-1"></script>
+<script src="./pricing/app-pricing.js?v=2026-09-06-1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -740,6 +745,8 @@ var rid = 0;
 var _lastCalc = {};
 var currentProjectId = null;
 var isSaving = false;
+var priceContext = { version: 'legacy', legacyBasisUnknown: true };
+var NEW_MASTER_KEY = 'usglass_master_2026_09';
 
 /* Drive sync */
 var DRIVE_FOLDER_NAME    = 'US_GLASS_見積管理';
@@ -793,8 +800,8 @@ function readSettings(){
   var miscManual = parseFloat((gv('misc-manual')||{value:0}).value) || 0;
   var discName   = (gv('disc-name')||{value:''}).value || '';
   var discAmt    = parseFloat((gv('disc-amt')||{value:0}).value) || 0;
-  var multG  = parseFloat((gv('m-glass')||{value:1.25}).value) || 1.25;
-  var multC  = parseFloat((gv('m-const')||{value:1.75}).value) || 1.75;
+  var multG  = parseFloat((gv('m-glass')||{value:defaultCustomerGlassMult()}).value) || defaultCustomerGlassMult();
+  var multC  = parseFloat((gv('m-const')||{value:defaultCustomerLaborMult()}).value) || defaultCustomerLaborMult();
   var multK  = parseFloat((gv('m-caulk')||{value:1.48}).value) || 1.48;
   var multKR = parseFloat((gv('m-remov')||{value:1.48}).value) || 1.48;
   var multD  = parseFloat((gv('m-disp') ||{value:1.00}).value) || 1.00;
@@ -852,7 +859,8 @@ function getRowData(el){
     matScope:    radio(el, 'msc' + id) || 'per_unit',
     customSell:  parseFloat((el.querySelector('.custom-sell') ||{value:0}).value) || 0,
     customMatC:  parseFloat((el.querySelector('.custom-matc') ||{value:0}).value) || 0,
-    sellMult:    parseFloat((el.querySelector('.sell-mult')   ||{value:2.0}).value) || 2.0,
+    sellMult:    parseFloat((el.querySelector('.sell-mult') ||{value:baseSellMult()}).value) || baseSellMult(),
+    workType:    (el.querySelector('.work-type') || {value:'new'}).value,
     constRate:   parseFloat((el.querySelector('.const-rate')  ||{value:''}).value) || 0,
     fix:         radio(el, 'fix' + id) || 'caulking',
     caulkSide:   radio(el, 'cks' + id) || 'double',
@@ -885,9 +893,11 @@ function getRowData(el){
 function calcRow(d){
   var w = d.w, h = d.h, q = d.q;
   var area = w * h / 1000000;
-  var mult = d.sellMult || 2.0;
+  var mult = d.sellMult || baseSellMult();
+  var newPrices = isNewPricing();
   var mirror = isMirror(d.g);
   var custom = isCustom(d.g);
+  var repairFactor = newPrices && d.workType === 'repair' && !mirror ? 1.10 : 1;
   var cat = d.itemCategory || 'ガラス';
   var isOutsource = custom && (cat !== 'ガラス');
 
@@ -917,19 +927,19 @@ function calcRow(d){
   var materialCost, glassPrice;
   if(custom){
     if(d.priceMode === 'sqm'){
-      materialCost = Math.round(d.customSqm * area * q * 1.10);
-      glassPrice   = Math.round(materialCost * mult);
+      materialCost = Math.round(d.customSqm * area * q * (newPrices ? 1 : 1.10));
+      glassPrice   = Math.round(materialCost * repairFactor * mult);
     } else if(d.priceMode === 'mat'){
       materialCost = (d.matScope === 'total') ? d.customMat : d.customMat * q;
-      glassPrice   = Math.round(materialCost * mult);
+      glassPrice   = Math.round(materialCost * repairFactor * mult);
     } else {
       materialCost = d.customMatC || 0;
       glassPrice   = d.customSell;
     }
   } else {
     var up = GP[d.g] || 0;
-    materialCost = Math.round(up * area * q * 1.10);
-    glassPrice   = Math.round(materialCost * mult);
+    materialCost = Math.round(up * area * q * (newPrices ? 1 : 1.10));
+    glassPrice   = Math.round(materialCost * repairFactor * mult);
   }
 
   /* 施工 */
@@ -1929,11 +1939,13 @@ function saveQuoteHTML(){
 ══════════════════════════════════════════════ */
 function collectSettingsData(){
   return {
+    pricing: collectPricingContext(),
+    calculated: USGlassPriceContext.copy(_lastCalc),
     miscMode:  globalRadio('miscMode') || 'auto',
     miscManual:(gv('misc-manual') || {value:''}).value,
     discName:  (gv('disc-name')   || {value:''}).value,
     discAmt:        (gv('disc-amt')          || {value:''}).value,
-    defaultSellMult:(gv('default-sell-mult') || {value:'2.0'}).value,
+    defaultSellMult:(gv('default-sell-mult') || {value:baseSellMult()}).value,
     mGlass:       (gv('m-glass')        || {value:''}).value,
     mConst:       (gv('m-const')        || {value:''}).value,
     mCaulk:       (gv('m-caulk')        || {value:''}).value,
@@ -1981,6 +1993,7 @@ function collectRowsData(){
       customSell: (card.querySelector('.custom-sell')  || {value:''}).value,
       customMatC: (card.querySelector('.custom-matc')  || {value:''}).value,
       sellMult:   (card.querySelector('.sell-mult')    || {value:''}).value,
+      workType:   (card.querySelector('.work-type')    || {value:'new'}).value,
       constRate:  (card.querySelector('.const-rate')   || {value:''}).value,
       fix:        radio(card, 'fix' + id) || 'caulking',
       rem:        radio(card, 'rem' + id) || '0',
@@ -2177,7 +2190,8 @@ function applyRowData(card, row){
   if(card.querySelector('.custom-mat'))  card.querySelector('.custom-mat').value   = row.customMat  || 0;
   if(card.querySelector('.custom-sell')) card.querySelector('.custom-sell').value  = row.customSell || 0;
   if(card.querySelector('.custom-matc')) card.querySelector('.custom-matc').value  = row.customMatC || 0;
-  if(card.querySelector('.sell-mult'))   card.querySelector('.sell-mult').value    = row.sellMult   || 2.0;
+  if(card.querySelector('.sell-mult'))   card.querySelector('.sell-mult').value    = row.sellMult   || baseSellMult();
+  if(card.querySelector('.work-type'))   card.querySelector('.work-type').value = row.workType === 'repair' ? 'repair' : 'new';
   if(card.querySelector('.const-rate'))  card.querySelector('.const-rate').value   = row.constRate  || '';
   if(card.querySelector('.caulk-rate'))      card.querySelector('.caulk-rate').value      = row.caulkRate    || '';
   if(card.querySelector('.removal-rate'))    card.querySelector('.removal-rate').value    = row.removalRate  || '';
@@ -2212,6 +2226,8 @@ function applyRowData(card, row){
 
 function applyProjectData(data){
   if(!data) return;
+  // Resolve/validate prices before clearing any current inputs.
+  restorePricingContext((data.settings || {}).pricing);
 
   if(gv('pname')) gv('pname').value = data.pname || '';
 
@@ -2220,9 +2236,9 @@ function applyProjectData(data){
   if(gv('misc-manual')) gv('misc-manual').value = s.miscManual || 0;
   if(gv('disc-name'))   gv('disc-name').value   = s.discName   || '';
   if(gv('disc-amt'))         gv('disc-amt').value          = s.discAmt        || 0;
-  if(gv('default-sell-mult')) gv('default-sell-mult').value = s.defaultSellMult || 2.0;
-  if(gv('m-glass'))       gv('m-glass').value        = s.mGlass      || 1.25;
-  if(gv('m-const'))       gv('m-const').value        = s.mConst      || 1.75;
+  if(gv('default-sell-mult')) gv('default-sell-mult').value = s.defaultSellMult || baseSellMult();
+  if(gv('m-glass'))       gv('m-glass').value        = s.mGlass      || defaultCustomerGlassMult();
+  if(gv('m-const'))       gv('m-const').value        = s.mConst      || defaultCustomerLaborMult();
   if(gv('m-caulk'))       gv('m-caulk').value        = s.mCaulk      || 1.48;
   if(gv('m-remov'))       gv('m-remov').value        = s.mRemov      || 1.48;
   if(gv('m-disp'))        gv('m-disp').value         = s.mDisp       || 1.00;
@@ -2271,6 +2287,9 @@ function resetEstimate(){
     '案件を保存していない場合、現在の入力内容は失われます。\n\n' +
     'リセットしますか？'
   )) return;
+
+  // New estimates use the new price profile; legacy estimates keep theirs on load.
+  startNewEstimatePricing();
 
   /* 明細行クリア */
   var box = gv('row-cards');
@@ -2364,6 +2383,8 @@ function updateRow(card){
   var ckf = card.querySelector('.caulk-fields');
 
   if(cf) cf.style.display = isCustom(gType) ? '' : 'none';
+  var workField = card.querySelector('.work-type-field');
+  if(workField) workField.style.display = isNewPricing() ? '' : 'none';
 
   /* 明細区分による切替 */
   var catSel = card.querySelector('.item-category');
@@ -2457,6 +2478,8 @@ function addRow(){
       <div>
         <div class="csec-title">基本情報</div>
         <div class="fields">
+          <div class="fg work-type-field" style="display:${isNewPricing() ? '' : 'none'}"><span class="fglabel">工事区分（材料計算）</span>
+            <select class="work-type" onchange="calc()"><option value="new">新築・通常</option><option value="repair">修理</option></select></div>
           <div class="fg"><span class="fglabel">建具番号</span>
             <input type="text" class="fixture-no" placeholder="例：AW-1" oninput="calc()"></div>
           <div class="fg"><span class="fglabel">幅 (mm)</span>
@@ -2570,8 +2593,8 @@ function addRow(){
           <div class="fields">
             <div class="fg"><span class="fglabel">防火コーキング</span>
               <div class="rrow">
-                <label><input type="radio" name="fir${id}" value="0" checked onchange="calc()"> なし（300円/m）</label>
-                <label><input type="radio" name="fir${id}" value="1" onchange="calc()"> あり（700円/m）</label>
+                <label><input type="radio" name="fir${id}" value="0" checked onchange="calc()"> 通常（マスター単価）</label>
+                <label><input type="radio" name="fir${id}" value="1" onchange="calc()"> 防火（マスター単価）</label>
               </div>
             </div>
             <div class="fg"><span class="fglabel">コーキング剥がし</span>
@@ -2587,7 +2610,7 @@ function addRow(){
               </div>
             </div>
             <div class="fg"><span class="fglabel">コーキング単価 (円/m・空欄=自動)</span>
-              <input type="number" class="caulk-rate" placeholder="空欄＝自動(300/700)" min="0" step="10" oninput="calc()"></div>
+              <input type="number" class="caulk-rate" placeholder="空欄＝マスター単価" min="0" step="10" oninput="calc()"></div>
             <div class="fg"><span class="fglabel">剥がし単価 (円/m・空欄=300)</span>
               <input type="number" class="removal-rate" placeholder="空欄＝300" min="0" step="10" oninput="calc()"></div>
             <div class="fg"><span class="fglabel">材料1本価格（空欄=全体設定）</span>
@@ -2703,8 +2726,8 @@ function renderMasterPanel(){
 ══════════════════════════════════════════════ */
 function getDefaultSellMult(){
   var el = gv('default-sell-mult');
-  var v = el ? parseFloat(el.value) : 2.0;
-  return (v > 0) ? v : 2.0;
+  var v = el ? parseFloat(el.value) : baseSellMult();
+  return (v > 0) ? v : baseSellMult();
 }
 
 function applyDefaultSellMultToAllRows(){
@@ -2727,7 +2750,7 @@ function applyDefaultSellMultToEmptyRows(){
 
 function saveDefaultSettings(){
   try {
-    localStorage.setItem('usglass_default_sell_mult', String(getDefaultSellMult()));
+    localStorage.setItem(isNewPricing() ? 'usglass_default_sell_mult_2026_09' : 'usglass_default_sell_mult', String(getDefaultSellMult()));
   } catch(e){}
 }
 
@@ -2771,12 +2794,17 @@ function readMasterInputs(){
 }
 
 function saveMasterPrices(){
-  readMasterInputs();
+  if(!confirm('現在の見積を編集した単価で再計算し、この価格区分の既定単価として保存しますか？')) return;
+  var before = currentMaster();
   try {
-    localStorage.setItem('usglass_GP',    JSON.stringify(GP));
-    localStorage.setItem('usglass_CR',    JSON.stringify(CR));
-    localStorage.setItem('usglass_OTHER', JSON.stringify(OTHER));
-  } catch(e){}
+    readMasterInputs();
+    persistActiveMaster();
+  } catch(e){
+    applyMaster(before);
+    renderMasterPanel();
+    alert('単価を保存できませんでした。変更前の単価を維持します。\n' + e.message);
+    return;
+  }
   var msg = gv('master-saved-msg');
   if(msg){ msg.style.display = 'inline'; setTimeout(function(){ msg.style.display = 'none'; }, 2000); }
   updateMasterWarning();
@@ -2784,7 +2812,8 @@ function saveMasterPrices(){
 }
 
 function resetMasterPrices(){
-  if(!confirm('単価を0（未設定）に戻します。よろしいですか？')) return;
+  if(isNewPricing()){ resetNewMaster(); return; }
+  if(!confirm('旧単価を初期値（未設定を含む）に戻します。よろしいですか？')) return;
   GP    = Object.assign({}, DEFAULT_GP);
   CR    = Object.assign({}, DEFAULT_CR);
   OTHER = Object.assign({}, DEFAULT_OTHER);
@@ -2829,6 +2858,10 @@ function showMasterExportText(text){
 }
 
 function importMasterPrices(){
+  var beforeMaster = currentMaster();
+  var beforeFields = Array.from(document.querySelectorAll('input, select, textarea')).map(function(el){
+    return { el:el, value:el.value, checked:el.checked };
+  });
   try {
     var text = prompt(
       '単価マスターJSONを貼り付けてください\n\n' +
@@ -2839,6 +2872,7 @@ function importMasterPrices(){
     if(!text || !text.trim()) return;
 
     var data = JSON.parse(text.trim());
+    if(!confirm('取り込んだ単価・設定で現在の見積を再計算しますか？')) return;
 
     var OTH_KEYS = ['ckNormal','ckFire','ckRemoval','disposal','mirrorLabor','doorPulley'];
     var gpCount = 0, crCount = 0, othCount = 0;
@@ -3015,9 +3049,7 @@ function importMasterPrices(){
     }
 
     /* localStorage 保存 */
-    localStorage.setItem('usglass_GP',    JSON.stringify(GP));
-    localStorage.setItem('usglass_CR',    JSON.stringify(CR));
-    localStorage.setItem('usglass_OTHER', JSON.stringify(OTHER));
+    persistActiveMaster();
 
     /* UI 更新・再計算 */
     renderMasterPanel();
@@ -3054,6 +3086,10 @@ function importMasterPrices(){
     alert(msg);
 
   } catch(e){
+    applyMaster(beforeMaster);
+    beforeFields.forEach(function(f){ f.el.value = f.value; if(f.checked !== undefined) f.el.checked = f.checked; });
+    renderMasterPanel();
+    calc();
     if(e instanceof SyntaxError){
       alert('JSONの形式が正しくありません。\n\nエラー：' + e.message + '\n\nダブルクォートの使用・末尾カンマの有無を確認してください。');
     } else {
@@ -3321,13 +3357,14 @@ document.addEventListener('change', function(e){
 /* ══════════════════════════════════════════════
    初期化
 ══════════════════════════════════════════════ */
-loadMasterPrices();
-loadDefaultSettings();
+/* APP_STARTUP_BEGIN */
 loadGoogleClientId();
 updateDriveSyncLabel();
+startNewEstimatePricing();
 addRow();
 renderMasterPanel();
 updateMasterWarning();
+/* APP_STARTUP_END */
 
 /* ══════════════════════════════════════════════
    図面拾い出しJSON 取込

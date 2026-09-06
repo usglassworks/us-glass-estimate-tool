@@ -177,8 +177,8 @@
       var state = await ensureDb();
       var project = state.db.projects.find(function(p){ return p.id === id; });
       if(!project){ alert('Google Drive上に案件が見つかりません。'); return; }
-      currentProjectId = id;
       applyProjectData(project.data);
+      currentProjectId = id;
       hideSavedProjects();
       setDriveLabels();
       alert('Google Driveから案件を呼び出しました：' + (project.name || '無題案件'));
