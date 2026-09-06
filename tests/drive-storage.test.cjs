@@ -36,7 +36,10 @@ function driveHarness(options = {}) {
     collectRowsData: () => [clone(savedRow)],
     _makeSavedAt: () => '2026-09-06 10:00',
     updateSaveButtonLabel() {}, updateDriveSyncLabel() {}, hideSavedProjects() {},
-    applyProjectData: data => { loaded = clone(data); },
+    applyProjectData: data => {
+      if(options.applyFailure) throw new Error('unknown pricing version');
+      loaded = clone(data);
+    },
     escH: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'),
     DRIVE_FOLDER_NAME: 'root', DRIVE_SUBFOLDER_NAME: 'data', DRIVE_FILE_NAME: 'estimates.json',
     _driveFindItem: async name => name === 'estimates.json' ? (db ? 'file-id' : null) : 'folder-id',
@@ -131,4 +134,12 @@ test('Drive load hands saved data to the existing form-restoration function', as
   assert.deepEqual(h.loaded, existing.data);
   assert.equal(h.app.currentProjectId, 'original');
   assert.equal(h.writes, 0);
+});
+
+test('rejected price snapshot does not switch the current project id', async () => {
+  const h = driveHarness({ currentProjectId: 'current', applyFailure: true });
+  await h.app.loadProjectData('original');
+  assert.equal(h.app.currentProjectId, 'current');
+  assert.equal(h.writes, 0);
+  assert.equal(h.loaded, undefined);
 });

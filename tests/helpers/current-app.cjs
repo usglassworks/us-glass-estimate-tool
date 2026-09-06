@@ -10,8 +10,8 @@ function currentApp() {
   const html = fs.readFileSync(path.join(__dirname, '../../index.html'), 'utf8');
   const match = html.match(/<script>\s*('use strict';[\s\S]*?)<\/script>/);
   if (!match) throw new Error('Application script not found');
-  const startup = 'loadMasterPrices();\nloadDefaultSettings();\nloadGoogleClientId();\nupdateDriveSyncLabel();\naddRow();\nrenderMasterPanel();\nupdateMasterWarning();';
-  if (!match[1].includes(startup)) throw new Error('Startup changed: review test isolation');
+  const startup = /\/\* APP_STARTUP_BEGIN \*\/[\s\S]*?\/\* APP_STARTUP_END \*\//;
+  if (!startup.test(match[1])) throw new Error('Startup changed: review test isolation');
   const stored = new Map();
   const elements = new Map();
   const context = {
@@ -25,6 +25,9 @@ function currentApp() {
     alert() {}, confirm: () => true,
   };
   vm.createContext(context);
+  for (const file of ['approved-master.js', 'price-context.js', 'app-pricing.js']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../../pricing', file), 'utf8'), context, { filename: file });
+  }
   vm.runInContext(match[1].replace(startup, ''), context, { filename: 'index.html' });
   return { app: context, stored, elements };
 }
