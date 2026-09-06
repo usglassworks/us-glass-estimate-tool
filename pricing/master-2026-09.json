@@ -1,6 +1,6 @@
 {
   "version": "2026-09-06",
-  "description": "User-specified prices. Staged data only: not loaded by the live application. Labor rates are final unit prices, never multiply these by two at calculation time.",
+  "description": "Approved base prices. Labor rates are final unit prices. Mirror labor is 5000 JPY per pane.",
   "GP": {
     "FL2": 1560,
     "FL3": 1840,
@@ -63,12 +63,11 @@
     "ckFire": 750,
     "ckRemoval": 300,
     "disposal": 1000,
-    "mirrorLabor": 10000,
+    "mirrorLabor": 5000,
     "doorPulley": 2000
   },
   "materialSellMultiplier": 1.5,
   "repairMaterialFactor": 1.1,
   "laborMultiplier": 1,
-  "mirrorLaborBasis": null,
-  "pendingClarification": "Mirror labor 10000 JPY: per pane, per estimate row, or per project? Existing code uses per pane. No new rule is applied until this is explicit."
+  "mirrorLaborBasis": "per_pane"
 }

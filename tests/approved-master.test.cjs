@@ -31,13 +31,13 @@ test('all 29 material prices match the specification without adding unspecified 
 test('all 24 labor prices match the specification without inventing FL2/FL3 labor', () => {
   assert.deepEqual(master.CR, labor);
 });
-test('fixed prices and factors match the specification; mirror unit remains unassigned', () => {
+test('fixed prices and factors match the specification; mirror is 5000 per pane', () => {
   assert.deepEqual(master.OTHER, { ckNormal:350, ckFire:750, ckRemoval:300,
-    disposal:1000, mirrorLabor:10000, doorPulley:2000 });
+    disposal:1000, mirrorLabor:5000, doorPulley:2000 });
   assert.equal(master.materialSellMultiplier, 1.5);
   assert.equal(master.repairMaterialFactor, 1.1);
   assert.equal(master.laborMultiplier, 1);
-  assert.equal(master.mirrorLaborBasis, null);
+  assert.equal(master.mirrorLaborBasis, 'per_pane');
 });
 
 for (const [glass, rate] of Object.entries(labor)) {
