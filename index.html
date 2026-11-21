@@ -361,6 +361,7 @@ tfoot td.l{text-align:left}
 .btn-order-dim:active{background:#e0e0e0}
 .btn-order-dim-clear{color:#c62828;border-color:#ef9a9a}
 .btn-json-import{background:#0d6b50;color:#fff;border:none;padding:14px 24px;border-radius:8px;font-size:15px;font-weight:800;font-family:inherit;min-height:56px;position:relative;z-index:100000;pointer-events:auto!important;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.row-card.material-only .caulk-fields{display:none!important}
 </style>
 </head>
 <body>
@@ -626,8 +627,8 @@ tfoot td.l{text-align:left}
   <!-- アクションバー -->
   <div class="action-bar no-print">
     <button type="button" id="previewBtn" class="btn-preview">PDF確認プレビュー</button>
-    <button type="button" id="saveProjectBtn" class="btn-preview" onclick="saveProjectData()">案件を保存</button>
-    <button type="button" id="saveAsNewBtn" class="btn-preview" onclick="saveAsNewProject()">別案件として保存</button>
+    <button type="button" id="saveProjectBtn" class="btn-preview">案件を保存</button>
+    <button type="button" id="saveAsNewBtn" class="btn-preview">別案件として保存</button>
     <button type="button" id="loadProjectBtn" class="btn-preview" onclick="showSavedProjects()">案件を呼び出し</button>
     <button type="button" id="saveQuoteBtn" class="btn-preview" onclick="saveQuoteHTML()">見積書を保存</button>
     <button type="button" id="sendToManagerBtn" class="btn-send-manager" onclick="sendToManager()">現場管理に送る</button>
@@ -845,6 +846,7 @@ function getRowData(el){
     h:           parseFloat(el.querySelector('.ih').value) || 0,
     q:           parseInt(  el.querySelector('.iq').value) || 0,
     g:           glassType,
+    saleMode:     (el.querySelector('.sale-mode') || {value:'installation'}).value,
     customName:  (el.querySelector('.custom-name') ||{value:''}).value || '',
     priceMode:   priceMode,
     customSqm:   parseFloat((el.querySelector('.custom-sqm')  ||{value:0}).value) || 0,
@@ -932,6 +934,18 @@ function calcRow(d){
     glassPrice   = Math.round(materialCost * mult);
   }
 
+  /* 材料売り：材料代以外の施工・取外・コーキング・廃棄・追加料金なし */
+  if(d.saleMode === 'material'){
+    return {
+      area:area, materialCost:materialCost, glassPrice:glassPrice,
+      constructionBase:0, removalCost:0, caulkMeters:0,
+      caulkingCost:0, caulkingRemoval:0, ckrRate:0,
+      caulkMatCost:0, caulkBottles:0, disposalCost:0, addAmt:0,
+      rowTotal:glassPrice, profitRow:glassPrice-materialCost,
+      mult:mult, cr:0, mirror:mirror, custom:custom, materialOnly:true
+    };
+  }
+
   /* 施工 */
   var constructionBase, removalCost;
   if(mirror){
@@ -1013,7 +1027,7 @@ function calc(){
 
   /* 諸経費：手入力が1円以上なら優先、0/空欄なら自動/手入力モードに従う */
   var totalQty = 0;
-  for(var i = 0; i < datas.length; i++) totalQty += datas[i].q;
+  for(var i = 0; i < datas.length; i++) if(datas[i].saleMode !== 'material') totalQty += datas[i].q;
   var miscManual = parseFloat((gv('misc-manual') || {value:0}).value) || 0;
   var misc;
   if(miscManual > 0){
@@ -1975,6 +1989,7 @@ function collectRowsData(){
       q:          (card.querySelector('.iq')           || {value:''}).value,
       g:          (card.querySelector('.ig')           || {value:'FL5'}).value,
       priceMode:  radio(card, 'pm' + id) || 'sqm',
+      saleMode:    (card.querySelector('.sale-mode') || {value:'installation'}).value,
       customName: (card.querySelector('.custom-name')  || {value:''}).value,
       customSqm:  (card.querySelector('.custom-sqm')   || {value:''}).value,
       customMat:  (card.querySelector('.custom-mat')   || {value:''}).value,
@@ -2172,6 +2187,7 @@ function applyRowData(card, row){
   if(card.querySelector('.ih'))          card.querySelector('.ih').value           = row.h          || '';
   if(card.querySelector('.iq'))          card.querySelector('.iq').value           = row.q          || 1;
   if(card.querySelector('.ig'))          card.querySelector('.ig').value           = row.g          || 'FL5';
+  if(card.querySelector('.sale-mode')) card.querySelector('.sale-mode').value = row.saleMode || 'installation';
   if(card.querySelector('.custom-name')) card.querySelector('.custom-name').value  = row.customName || '';
   if(card.querySelector('.custom-sqm'))  card.querySelector('.custom-sqm').value   = row.customSqm  || 0;
   if(card.querySelector('.custom-mat'))  card.querySelector('.custom-mat').value   = row.customMat  || 0;
@@ -2315,7 +2331,7 @@ function bindButtons(){
     var btn = gv(id);
     if(!btn) return;
     btn.addEventListener('click', function(){ fn(); }, false);
-    btn.addEventListener('touchend', function(){ fn(); }, false);
+    /* iPhoneのタップでもclickは発生するためtouchendの二重登録を廃止 */
   }
   safe('pdfBtn',         printPDF);
   safe('pdfBtnBot',      printPDF);
@@ -2379,8 +2395,10 @@ function updateRow(card){
   if(custPriceRow) custPriceRow.style.display = (applyMult && applyMult.checked) ? 'none' : '';
 
   /* コーキング欄は外注行では非表示 */
+  var materialOnly = (card.querySelector('.sale-mode') || {value:'installation'}).value === 'material';
+  card.classList.toggle('material-only', materialOnly);
   var fixVal = radio(card, 'fix' + id);
-  if(ckf) ckf.style.display = (!isOutsource && fixVal === 'caulking') ? '' : 'none';
+  if(ckf) ckf.style.display = (!materialOnly && !isOutsource && fixVal === 'caulking') ? '' : 'none';
 
   var priceMode = radio(card, 'pm' + id);
   var sqmRow  = card.querySelector('.pm-sqm-row');
@@ -2467,6 +2485,11 @@ function addRow(){
             <input type="number" class="iq" value="1" min="1" step="1" oninput="calc()"></div>
           <div class="fg"><span class="fglabel">ガラス種類</span>
             <select class="ig" onchange="calc();updateRow(this.closest('.row-card'))">${GOPTS}</select></div>
+          <div class="fg"><span class="fglabel">販売区分</span>
+            <select class="sale-mode" onchange="updateRow(this.closest('.row-card'));calc()">
+              <option value="installation">施工込み（通常）</option>
+              <option value="material">材料売り（施工なし）</option>
+            </select></div>
         </div>
         <div style="margin-top:6px">
           <div class="fglabel" style="font-size:11px;color:#555;margin-bottom:3px">備考（加工・注意事項など）</div>
