@@ -1426,12 +1426,12 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
       h += '<tr class="tr-disc"><td class="l">値引き' + (s.discName ? ' （' + escH(s.discName) + '）' : '') + '</td>';
       h += '<td>▲ ' + fmt(s.discAmt) + '</td></tr>';
     }
-    h += '<tr class="tr-grand"><td class="l"><strong>見積金額合計</strong></td><td><strong>' + fmt(quoteAmt) + '</strong></td></tr>';
+    h += '<tr class="tr-grand"><td class="l"><strong>見積金額合計（税込）</strong></td><td><strong>' + fmt(Math.round(quoteAmt * 1.10)) + '</strong></td></tr>';
     h += '</table>';
 
     /* 表下シンプル合計表示 */
     h += '<div class="customer-total-plain">';
-    h += '<div class="quote-line">見積金額合計：' + fmt(quoteAmt) + ' 円</div>';
+    h += '<div class="quote-line">見積金額合計（税込）：' + fmt(Math.round(quoteAmt * 1.10)) + ' 円</div>';
     if(q.showNET){
       h += '<div class="net-line">NET（税込） ¥' + fmt(q.netInclAmt) + '円</div>';
     }
@@ -1442,7 +1442,7 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     h += '<div class="mt-row" style="background:#ecf3fb;border-top:2px solid #1a5f8c"><span>小計</span><span>' + fmt(totals.cSub) + '</span></div>';
     h += '<div class="mt-row" style="background:#fff8e1"><span>' + makeMiscLabel(totals) + '</span><span>' + fmt(totals.misc) + '</span></div>';
     if(s.discAmt > 0) h += '<div class="mt-row" style="background:#fef3f3"><span>値引き</span><span>▲ ' + fmt(s.discAmt) + '</span></div>';
-    h += '<div class="mt-row" style="background:#0d2b50;color:#fff;font-weight:800"><span>見積金額合計</span><span>' + fmt(quoteAmt) + '</span></div>';
+    h += '<div class="mt-row" style="background:#0d2b50;color:#fff;font-weight:800"><span>見積金額合計（税込）</span><span>' + fmt(Math.round(quoteAmt * 1.10)) + '</span></div>';
     if(q.showNET) h += '<div class="mt-row" style="background:#e8f5e9"><span>NET（税込）</span><span>' + fmt(q.netInclAmt) + '</span></div>';
     h += '</div>';
   }
@@ -1462,8 +1462,8 @@ function renderSummary(totals, netAmt, quoteAmt, s, q, netProfit, netProfitRate)
     gv('total-lbl').textContent = '実NET（税込）';
     gv('total-amt').textContent = '¥ ' + fmt(q.netInclAmt);
   } else {
-    gv('total-lbl').textContent = isInt ? '合計金額（社内）' : '見積金額合計（元請け）';
-    gv('total-amt').textContent = '¥ ' + fmt(grand);
+    gv('total-lbl').textContent = isInt ? '合計金額（社内）' : '見積金額合計（税込・元請け）';
+    gv('total-amt').textContent = '¥ ' + fmt(isInt ? grand : Math.round(quoteAmt * 1.10));
   }
 
   var ps = gv('profit-sec');
