@@ -847,6 +847,8 @@ function getRowData(el){
     q:           parseInt(  el.querySelector('.iq').value) || 0,
     g:           glassType,
     saleMode:     (el.querySelector('.sale-mode') || {value:'installation'}).value,
+    edgePolish:   !!(el.querySelector('.edge-polish') && el.querySelector('.edge-polish').checked),
+    edgeRate:     parseFloat((el.querySelector('.edge-rate') || {value:360}).value) || 0,
     customName:  (el.querySelector('.custom-name') ||{value:''}).value || '',
     priceMode:   priceMode,
     customSqm:   parseFloat((el.querySelector('.custom-sqm')  ||{value:0}).value) || 0,
@@ -932,6 +934,14 @@ function calcRow(d){
     var up = GP[d.g] || 0;
     materialCost = Math.round(up * area * q * 1.10);
     glassPrice   = Math.round(materialCost * mult);
+  }
+
+  /* 4方糸面取り：仕入れ加工原価を材料原価に追加し、売価倍率を適用 */
+  var edgeMeters = d.edgePolish && w > 0 && h > 0 ? (w + h) * 2 / 1000 * q : 0;
+  var edgeCost = Math.round(edgeMeters * Math.max(0, d.edgeRate || 0));
+  if(edgeCost > 0){
+    materialCost += edgeCost;
+    glassPrice += Math.round(edgeCost * mult);
   }
 
   /* 材料売り：材料代以外の施工・取外・コーキング・廃棄・追加料金なし */
@@ -1216,6 +1226,7 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
       var d = datas[i], c = calcs[i];
       var dim = (d.w && d.h) ? d.w + ' × ' + d.h : '—';
       var pname = (d.customName && isCustom(d.g)) ? d.customName : d.g;
+      if(d.edgePolish) pname += '（4方糸面取り）';
       var ckr_disp = d.caulkRate > 0 ? d.caulkRate : (d.fire ? OTHER.ckFire : OTHER.ckNormal);
       var up = isCustom(d.g) ? (d.priceMode === 'sqm' ? d.customSqm : '—') : (GP[d.g] || 0);
       var rowT = c.glassPrice + c.constructionBase + c.removalCost
@@ -1357,6 +1368,7 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
       var d = datas[i], c = calcs[i], cd = cDisp[i];
       var dim = (d.w && d.h) ? d.w + ' × ' + d.h : '—';
       var pname = (d.customName && isCustom(d.g)) ? d.customName : d.g;
+      if(d.edgePolish) pname += '（4方糸面取り）';
       var rowT = cd.glassPrice + cd.constructionBase + cd.removalCost
                + cd.caulkingCost + cd.caulkingRemoval + cd.disposalCost + cd.addAmt;
       h += '<tr>';
@@ -1990,6 +2002,8 @@ function collectRowsData(){
       g:          (card.querySelector('.ig')           || {value:'FL5'}).value,
       priceMode:  radio(card, 'pm' + id) || 'sqm',
       saleMode:    (card.querySelector('.sale-mode') || {value:'installation'}).value,
+      edgePolish:  !!(card.querySelector('.edge-polish') && card.querySelector('.edge-polish').checked),
+      edgeRate:    (card.querySelector('.edge-rate') || {value:360}).value,
       customName: (card.querySelector('.custom-name')  || {value:''}).value,
       customSqm:  (card.querySelector('.custom-sqm')   || {value:''}).value,
       customMat:  (card.querySelector('.custom-mat')   || {value:''}).value,
@@ -2188,6 +2202,8 @@ function applyRowData(card, row){
   if(card.querySelector('.iq'))          card.querySelector('.iq').value           = row.q          || 1;
   if(card.querySelector('.ig'))          card.querySelector('.ig').value           = row.g          || 'FL5';
   if(card.querySelector('.sale-mode')) card.querySelector('.sale-mode').value = row.saleMode || 'installation';
+  if(card.querySelector('.edge-polish')) card.querySelector('.edge-polish').checked = !!row.edgePolish;
+  if(card.querySelector('.edge-rate')) card.querySelector('.edge-rate').value = row.edgeRate == null ? 360 : row.edgeRate;
   if(card.querySelector('.custom-name')) card.querySelector('.custom-name').value  = row.customName || '';
   if(card.querySelector('.custom-sqm'))  card.querySelector('.custom-sqm').value   = row.customSqm  || 0;
   if(card.querySelector('.custom-mat'))  card.querySelector('.custom-mat').value   = row.customMat  || 0;
@@ -2490,6 +2506,16 @@ function addRow(){
               <option value="installation">施工込み（通常）</option>
               <option value="material">材料売り（施工なし）</option>
             </select></div>
+        </div>
+        <div style="margin-top:8px;padding:8px;background:#f1f7fd;border:1px solid #c8ddef;border-radius:6px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700">
+            <input type="checkbox" class="edge-polish" onchange="calc()"> 4方糸面取り加工を追加
+          </label>
+          <div class="rrow" style="margin-top:6px">
+            <span class="fglabel">加工原価（円/m）</span>
+            <input type="number" class="edge-rate" value="360" min="0" step="1" style="width:105px" oninput="calc()">
+            <span style="font-size:11px;color:#555">4方長さ×枚数で自動計算・売価倍率を適用</span>
+          </div>
         </div>
         <div style="margin-top:6px">
           <div class="fglabel" style="font-size:11px;color:#555;margin-bottom:3px">備考（加工・注意事項など）</div>
