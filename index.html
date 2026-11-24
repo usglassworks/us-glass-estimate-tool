@@ -703,7 +703,7 @@ tfoot td.l{text-align:left}
 ══════════════════════════════════════════════ */
 var DEFAULT_GP = {
   'FL2':0,'FL3':0,'FL5':0,'FL6':0,'FL8':0,'FL10':0,'FL12':0,
-  'F6':0,'Fw':0,'pw':0,
+  'F6':0,'Fw':0,'pw':0,'pw10':23000,
   'グリーンラル6':0,'グリーンラル8':0,
   'スリガラス3':0,'スリガラス5':0,'スリガラス6':0,
   'Yカガミ3':0,'Yカガミ5':0,'Yカガミ6':0,
@@ -716,7 +716,7 @@ var DEFAULT_GP = {
 
 var DEFAULT_CR = {
   'FL5':0,'FL6':0,'FL8':0,'FL10':1800,'FL12':0,
-  'F6':0,'Fw':0,'pw':0,
+  'F6':0,'Fw':0,'pw':0,'pw10':5000,
   'グリーンラル6':0,'グリーンラル8':0,
   'スリガラス3':0,'スリガラス5':0,'スリガラス6':0,
   '3+3透明':1200,'4+4透明':1400,'5+5透明':1800,
@@ -733,7 +733,8 @@ var GP    = Object.assign({}, DEFAULT_GP);
 var CR    = Object.assign({}, DEFAULT_CR);
 var OTHER = Object.assign({}, DEFAULT_OTHER);
 
-var CUSTOM_TYPES = {'自由入力':1,'複層ガラス':1,'LOW-E複層':1,'特注品':1};
+var OUTSOURCE_TYPES = {'外注工事':1,'フィルム工事':1,'その他工事':1,'部材':1,'諸経費':1};
+var CUSTOM_TYPES = {'自由入力':1,'複層ガラス':1,'LOW-E複層':1,'特注品':1,'外注工事':1,'フィルム工事':1,'その他工事':1,'部材':1,'諸経費':1};
 var MIRRORS      = {'Yカガミ3':1,'Yカガミ5':1,'Yカガミ6':1};
 
 var viewMode = 'internal';
@@ -874,10 +875,10 @@ function getRowData(el){
     addInSales:  el.querySelector('.add-in-sales') ? el.querySelector('.add-in-sales').checked : false,
     addInCust:   el.querySelector('.add-in-cust')  ? el.querySelector('.add-in-cust').checked  : false,
     fixtureNo:   (el.querySelector('.fixture-no')  || {value:''}).value || '',
-    itemCategory:     (el.querySelector('.item-category')      ||{value:'ガラス'}).value || 'ガラス',
+    itemCategory:     OUTSOURCE_TYPES[glassType] ? glassType : ((el.querySelector('.item-category') || {value:'ガラス'}).value || 'ガラス'),
     outsourceCost:    parseFloat((el.querySelector('.outsource-cost')  ||{value:0}).value) || 0,
     internalPrice:    parseFloat((el.querySelector('.internal-price')  ||{value:0}).value) || 0,
-    customerPrice:    parseFloat((el.querySelector('.customer-price')  ||{value:0}).value) || 0,
+    customerPrice:    (function(v){ return v === '' ? null : (parseFloat(v) || 0); })((el.querySelector('.customer-price') || {value:''}).value),
     applyCustomerMult: el.querySelector('.apply-customer-mult') ? el.querySelector('.apply-customer-mult').checked : false,
     itemNote:         (el.querySelector('.item-note')           ||{value:''}).value || ''
   };
@@ -892,14 +893,14 @@ function calcRow(d){
   var mult = d.sellMult || 2.0;
   var mirror = isMirror(d.g);
   var custom = isCustom(d.g);
-  var cat = d.itemCategory || 'ガラス';
-  var isOutsource = custom && (cat !== 'ガラス');
+  var cat = OUTSOURCE_TYPES[d.g] ? d.g : (d.itemCategory || 'ガラス');
+  var isOutsource = !!OUTSOURCE_TYPES[d.g] || (custom && cat !== 'ガラス');
 
   /* 外注系（外注工事・フィルム工事・その他工事・部材・諸経費）の計算 */
   if(isOutsource){
     var outsourceCostAmt  = d.outsourceCost  || 0;
     var internalSellAmt   = d.internalPrice  || 0;
-    var customerSellAmt   = d.customerPrice  || 0;
+    var customerSellAmt   = d.customerPrice == null ? internalSellAmt : d.customerPrice;
     var applyMult         = !!d.applyCustomerMult;
     return {
       area:0, materialCost:outsourceCostAmt, glassPrice:0,
@@ -1281,7 +1282,7 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
       for(var ii = 0; ii < outIdx.length; ii++){
         var i = outIdx[ii];
         var d = datas[i], c = calcs[i], cd = cDisp[i];
-        var pname = d.customName || '';
+        var pname = d.customName || (OUTSOURCE_TYPES[d.g] ? d.g : (d.itemCategory || '外注工事'));
         var catLabel = c.itemCategory || '外注';
         var custSell = cd.outsourceCustomerSell || 0;
         var noteStr = d.itemNote ? ('<br><span style="font-size:10px;color:#666">' + escH(d.itemNote) + '</span>') : '';
@@ -1409,7 +1410,7 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
       for(var ii = 0; ii < outIdx.length; ii++){
         var i = outIdx[ii];
         var d = datas[i], cd = cDisp[i];
-        var pname = d.customName || '';
+        var pname = d.customName || (OUTSOURCE_TYPES[d.g] ? d.g : (d.itemCategory || '外注工事'));
         var catLabel = cd.itemCategory || '外注';
         var noteStr = d.itemNote ? ('<br><span style="font-size:10px;color:#666">' + escH(d.itemNote) + '</span>') : '';
         h += '<tr>';
@@ -2235,7 +2236,7 @@ function applyRowData(card, row){
   if(card.querySelector('.item-category'))     card.querySelector('.item-category').value     = row.itemCategory    || 'ガラス';
   if(card.querySelector('.outsource-cost'))    card.querySelector('.outsource-cost').value    = row.outsourceCost   || '';
   if(card.querySelector('.internal-price'))    card.querySelector('.internal-price').value    = row.internalPrice   || '';
-  if(card.querySelector('.customer-price'))    card.querySelector('.customer-price').value    = row.customerPrice   || '';
+  if(card.querySelector('.customer-price'))    card.querySelector('.customer-price').value    = row.customerPrice == null ? '' : row.customerPrice;
   if(card.querySelector('.apply-customer-mult')) card.querySelector('.apply-customer-mult').checked = !!row.applyCustomerMult;
   if(card.querySelector('.item-note'))         card.querySelector('.item-note').value         = row.itemNote        || '';
   updateOrderDimWarning(card);
@@ -2399,7 +2400,8 @@ function updateRow(card){
 
   /* 明細区分による切替 */
   var catSel = card.querySelector('.item-category');
-  var cat = catSel ? catSel.value : 'ガラス';
+  if(catSel && OUTSOURCE_TYPES[gType]) catSel.value = gType;
+  var cat = OUTSOURCE_TYPES[gType] ? gType : (catSel ? catSel.value : 'ガラス');
   var isOutsource = (cat !== 'ガラス');
   var glassF = card.querySelector('.custom-glass-fields');
   var outF   = card.querySelector('.outsource-fields');
@@ -2447,7 +2449,7 @@ var GOPTS = (function(){
   });
   s += '</optgroup>';
   s += '<optgroup label="型板・霞ガラス">';
-  ['F6','Fw','pw'].forEach(function(v){ s += '<option value="' + v + '">' + v + '</option>'; });
+  ['F6','Fw','pw','pw10'].forEach(function(v){ s += '<option value="' + v + '">' + v + '</option>'; });
   s += '</optgroup>';
   s += '<optgroup label="特殊・装飾ガラス">';
   ['グリーンラル6','グリーンラル8','スリガラス3','スリガラス5','スリガラス6'].forEach(function(v){ s += '<option value="' + v + '">' + v + '</option>'; });
@@ -2466,6 +2468,9 @@ var GOPTS = (function(){
   s += '</optgroup>';
   s += '<optgroup label="特殊ガラス">';
   ['自由入力','複層ガラス','LOW-E複層','特注品'].forEach(function(v){ s += '<option value="' + v + '">' + v + '</option>'; });
+  s += '</optgroup>';
+  s += '<optgroup label="外注・その他工事">';
+  ['外注工事','フィルム工事','その他工事','部材','諸経費'].forEach(function(v){ s += '<option value="' + v + '">' + v + '</option>'; });
   s += '</optgroup>';
   return s;
 })();
@@ -2572,8 +2577,9 @@ function addRow(){
             <div class="fg"><span class="fglabel">社内売価 (円)</span>
               <input type="number" class="internal-price" placeholder="0" min="0" step="100" oninput="calc()"></div>
             <div class="fg outsource-cust-price-row"><span class="fglabel">元請け提出金額 (円)</span>
-              <input type="number" class="customer-price" placeholder="0" min="0" step="100" oninput="calc()"></div>
+              <input type="number" class="customer-price" placeholder="空欄＝社内売価を使用" min="0" step="100" oninput="calc()"></div>
           </div>
+          <div style="font-size:11px;color:#555;margin-top:5px">元請け提出金額が空欄なら社内売価を使用します。</div>
           <div class="rrow" style="margin-top:8px">
             <label><input type="checkbox" class="apply-customer-mult" onchange="calc();updateRow(this.closest('.row-card'))"> 元請け倍率を適用（社内売価×元請け倍率）</label>
           </div>
@@ -2705,7 +2711,7 @@ function delRow(id){
 /* ══════════════════════════════════════════════
    単価マスター
 ══════════════════════════════════════════════ */
-var GP_KEYS = ['FL2','FL3','FL5','FL6','FL8','FL10','FL12','F6','Fw','pw',
+var GP_KEYS = ['FL2','FL3','FL5','FL6','FL8','FL10','FL12','F6','Fw','pw','pw10',
                'グリーンラル6','グリーンラル8',
                'スリガラス3','スリガラス5','スリガラス6',
                'Yカガミ3','Yカガミ5','Yカガミ6',
@@ -2713,7 +2719,7 @@ var GP_KEYS = ['FL2','FL3','FL5','FL6','FL8','FL10','FL12','F6','Fw','pw',
                'ラミブロック3+3透明','ラミブロック4+4透明',
                'ラミブロック3+3乳半','ラミブロック4+4乳半',
                '耐熱5','耐熱8'];
-var CR_KEYS = ['FL5','FL6','FL8','FL10','FL12','F6','Fw','pw',
+var CR_KEYS = ['FL5','FL6','FL8','FL10','FL12','F6','Fw','pw','pw10',
                'グリーンラル6','グリーンラル8',
                'スリガラス3','スリガラス5','スリガラス6',
                '3+3透明','4+4透明','5+5透明','3+3乳半','4+4乳半',
