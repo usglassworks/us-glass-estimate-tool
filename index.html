@@ -587,7 +587,10 @@ tfoot td.l{text-align:left}
 
   <!-- 行カード -->
   <div id="row-cards" class="row-cards no-print"></div>
-  <button type="button" class="btn-add no-print" onclick="addRow()">＋ 明細を追加</button>
+  <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <button type="button" class="btn-add" onclick="addRow()">＋ 明細を追加</button>
+    <button type="button" class="btn-add" style="background:#496781" onclick="addRemovalRow()">＋ ガラス撤去</button>
+  </div>
 
   <!-- テーブルセクション -->
   <div class="tbl-section">
@@ -2541,7 +2544,7 @@ function addRow(){
               <option value="その他工事">その他工事</option>
               <option value="部材">部材</option>
               <option value="諸経費">諸経費</option>
-              <option value="ガラス撤去">ガラス撤去</option>
+              <option value="ガラス撤去">ガラス撤去（自由入力）</option>
             </select></div>
           <div class="fg"><span class="fglabel">ガラス名称 / 品名</span>
             <input type="text" class="custom-name" placeholder="品名（任意）" oninput="calc()"></div>
@@ -2709,6 +2712,21 @@ function delRow(id){
   if(el) el.parentNode.removeChild(el);
   renumber();
   calc();
+}
+
+/* ガラス撤去は単価マスター不要の自由入力明細。 */
+function addRemovalRow(){
+  addRow();
+  var cards = document.querySelectorAll('.row-card');
+  var card = cards[cards.length - 1];
+  if(!card) return;
+  var glass = card.querySelector('.ig');
+  if(glass) glass.value = 'ガラス撤去';
+  var cat = card.querySelector('.item-category');
+  if(cat) cat.value = 'ガラス撤去';
+  updateRow(card);
+  calc();
+  card.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 /* ══════════════════════════════════════════════
