@@ -1169,7 +1169,8 @@ function calc(){
   } else if(q.qaMode === 'net_mult'){
     quoteAmt = Math.round(netAmt * q.netMult);
   } else {
-    quoteAmt = q.qaTax === 'incl' ? Math.round(q.qaManual / 1.1) : q.qaManual;
+    /* 手入力見積はガラス工事分。その他工事の元請け売価を足して合算 */
+    quoteAmt = (q.qaTax === 'incl' ? Math.round(q.qaManual / 1.1) : q.qaManual) + cSumOUTSELL;
   }
 
   renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q);
