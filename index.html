@@ -498,7 +498,7 @@ tfoot td.l{text-align:left}
           <div class="srow">
             <label style="font-weight:700;min-width:90px">NET金額</label>
             <label><input type="radio" name="netMode" value="auto" checked onchange="calc()"> 自動</label>
-            <label><input type="radio" name="netMode" value="manual" onchange="calc()"> 手入力（ガラス分＋外注等を自動加算）</label>
+            <label><input type="radio" name="netMode" value="manual" onchange="calc()"> 手入力（全工事合計・外注分も含む）</label>
             <input type="text" inputmode="numeric" id="net-manual" value="0" style="width:110px" oninput="calc()">
             <label><input type="radio" name="netTax" value="excl" checked onchange="calc()"> 税抜</label>
             <label><input type="radio" name="netTax" value="incl" onchange="calc()"> 税込</label>
@@ -1145,21 +1145,20 @@ function calc(){
   };
 
   /* NET金額（税抜・内部計算用）
-     自動：iGrand に外注・撤去売価が含まれるため二重加算しない。
-     手入力：入力NETをガラス工事分とし、外注・撤去等の社内売価を合算。 */
+     自動：ガラス・外注・撤去等すべてを含む社内合計。
+     手入力：入力した全工事のNETを使用（外注費の重複加算をしない）。 */
   var netAmt;
   if(q.netMode === 'auto'){
     netAmt = iGrand;
   } else {
-    var manualGlassNetExcl = q.netTax === 'incl' ? Math.round(q.netManual / 1.1) : q.netManual;
-    netAmt = manualGlassNetExcl + iSumOUTSELL;
+    netAmt = q.netTax === 'incl' ? Math.round(q.netManual / 1.1) : q.netManual;
   }
 
-  /* NET表示も外注・撤去分を含む合算額へ統一 */
+  /* NET表示：手入力の税込金額は端数差が出ないよう入力値をそのまま使用 */
   q.netDispTax   = (q.netMode === 'manual') ? q.netTax : 'excl';
-  q.netDispAmt   = q.netDispTax === 'incl' ? Math.round(netAmt * 1.1) : netAmt;
+  q.netDispAmt   = q.netMode === 'manual' ? q.netManual : netAmt;
   q.netDispLabel = 'NET金額（' + (q.netDispTax === 'incl' ? '税込' : '税抜') + '）';
-  q.netInclAmt   = Math.round(netAmt * 1.1);
+  q.netInclAmt   = (q.netMode === 'manual' && q.netTax === 'incl') ? q.netManual : Math.round(netAmt * 1.1);
 
   /* 実NET粗利 = NET金額(税抜) − ガラス材料原価 − コーキング材料原価 */
   var netProfit     = netAmt - totalMatCost;
@@ -1172,8 +1171,8 @@ function calc(){
   } else if(q.qaMode === 'net_mult'){
     quoteAmt = Math.round(netAmt * q.netMult);
   } else {
-    /* 手入力見積はガラス工事分。その他工事の元請け売価を足して合算 */
-    quoteAmt = (q.qaTax === 'incl' ? Math.round(q.qaManual / 1.1) : q.qaManual) + cSumOUTSELL;
+    /* 手入力見積金額は全工事の合計。外注費を二重加算しない。 */
+    quoteAmt = q.qaTax === 'incl' ? Math.round(q.qaManual / 1.1) : q.qaManual;
   }
 
   renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q);
