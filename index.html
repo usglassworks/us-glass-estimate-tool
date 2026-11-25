@@ -889,9 +889,9 @@ function getRowData(el){
     addInCust:   el.querySelector('.add-in-cust')  ? el.querySelector('.add-in-cust').checked  : false,
     fixtureNo:   (el.querySelector('.fixture-no')  || {value:''}).value || '',
     itemCategory:     OUTSOURCE_TYPES[glassType] ? glassType : ((el.querySelector('.item-category') || {value:'ガラス'}).value || 'ガラス'),
-    outsourceCost:    parseFloat((el.querySelector('.outsource-cost')  ||{value:0}).value) || 0,
-    internalPrice:    (function(v){ return v === '' ? null : (parseFloat(v) || 0); })((el.querySelector('.internal-price') || {value:''}).value),
-    customerPrice:    (function(v){ return v === '' ? null : (parseFloat(v) || 0); })((el.querySelector('.customer-price') || {value:''}).value),
+    outsourceCost:    parseAmt((el.querySelector('.outsource-cost') || {value:0}).value),
+    internalPrice:    (function(v){ return String(v).trim() === '' ? null : parseAmt(v); })((el.querySelector('.internal-price') || {value:''}).value),
+    customerPrice:    (function(v){ return String(v).trim() === '' ? null : parseAmt(v); })((el.querySelector('.customer-price') || {value:''}).value),
     applyCustomerMult: el.querySelector('.apply-customer-mult') ? el.querySelector('.apply-customer-mult').checked : false,
     itemNote:         (el.querySelector('.item-note')           ||{value:''}).value || ''
   };
@@ -907,7 +907,8 @@ function calcRow(d){
   var mirror = isMirror(d.g);
   var custom = isCustom(d.g);
   var cat = OUTSOURCE_TYPES[d.g] ? d.g : (d.itemCategory || 'ガラス');
-  var isOutsource = !!OUTSOURCE_TYPES[d.g] || (custom && cat !== 'ガラス');
+  /* 区分が外注系ならガラス種類に依存せず外注として集計する */
+  var isOutsource = !!OUTSOURCE_TYPES[d.g] || !!OUTSOURCE_TYPES[cat];
 
   /* 外注系（外注工事・フィルム工事・その他工事・部材・諸経費）の計算 */
   if(isOutsource){
@@ -915,6 +916,8 @@ function calcRow(d){
     /* 社内売価未入力の場合は元請け入力額を流用。ゼロの明示入力は尊重する */
     var internalSellAmt   = d.internalPrice == null ? (d.customerPrice == null ? 0 : d.customerPrice) : d.internalPrice;
     var customerSellAmt   = d.customerPrice == null ? internalSellAmt : d.customerPrice;
+    /* 以前保存された案件で社内売価0・元請け売価のみ設定されている場合も補完 */
+    if(internalSellAmt === 0 && customerSellAmt > 0 && d.internalPrice === 0) internalSellAmt = customerSellAmt;
     var applyMult         = !!d.applyCustomerMult;
     return {
       area:0, materialCost:outsourceCostAmt, glassPrice:0,
@@ -1323,9 +1326,9 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     /* ─── グランドトータルサマリー ─── */
     h += '<table class="grand-summary-tbl">';
     h += '<tr class="tr-sub"><td class="l">小計（ガラス系）</td><td>' + fmt(glassOnlySub) + '</td></tr>';
-    if(totals.iSumOUTSELL > 0){
-      h += '<tr class="tr-outsource-sub"><td class="l">外注原価合計</td><td>' + fmt(totals.iSumOUTCOST) + '</td></tr>';
-      h += '<tr class="tr-outsource-sub"><td class="l">外注売価合計</td><td>' + fmt(totals.iSumOUTSELL) + '</td></tr>';
+    if(outIdx.length > 0){
+      h += '<tr class="tr-outsource-sub"><td class="l">外注原価合計（原価管理）</td><td>' + fmt(totals.iSumOUTCOST) + '</td></tr>';
+      h += '<tr class="tr-outsource-sub"><td class="l">外注売価合計（合計に加算）</td><td>' + fmt(totals.iSumOUTSELL) + '</td></tr>';
     }
     h += '<tr class="tr-misc"><td class="l">' + makeMiscLabel(totals) + '</td><td>' + fmt(totals.misc) + '</td></tr>';
     if(s.discAmt > 0){
@@ -1443,7 +1446,7 @@ function renderTable(datas, calcs, cDisp, s, totals, netAmt, quoteAmt, q){
     var cGlassSub = totals.cSub - totals.cSumOUTSELL;
     h += '<table class="grand-summary-tbl">';
     h += '<tr class="tr-sub"><td class="l">小計（ガラス系）</td><td>' + fmt(cGlassSub) + '</td></tr>';
-    if(totals.cSumOUTSELL > 0){
+    if(outIdx.length > 0){
       h += '<tr class="tr-outsource-sub"><td class="l">その他工事合計</td><td>' + fmt(totals.cSumOUTSELL) + '</td></tr>';
     }
     h += '<tr class="tr-misc"><td class="l">' + makeMiscLabel(totals) + '</td><td>' + fmt(totals.misc) + '</td></tr>';
@@ -2592,7 +2595,7 @@ function addRow(){
             <div class="fg outsource-cust-price-row"><span class="fglabel">元請け提出金額 (円)</span>
               <input type="number" class="customer-price" placeholder="空欄＝社内売価を使用" min="0" step="100" oninput="calc()"></div>
           </div>
-          <div style="font-size:11px;color:#555;margin-top:5px">元請け提出金額が空欄なら社内売価を使用します。</div>
+          <div style="font-size:11px;color:#555;margin-top:5px">外注売価を社内合計と自動NETに加算します。社内売価・元請け提出金額の片方だけ入力した場合は、もう一方にも反映します。</div>
           <div class="rrow" style="margin-top:8px">
             <label><input type="checkbox" class="apply-customer-mult" onchange="calc();updateRow(this.closest('.row-card'))"> 元請け倍率を適用（社内売価×元請け倍率）</label>
           </div>
